@@ -1,0 +1,11 @@
+/* src/style.css */
+body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif; /* Aquí aplicamos tu fuente */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    box-sizing: border-box;
+}

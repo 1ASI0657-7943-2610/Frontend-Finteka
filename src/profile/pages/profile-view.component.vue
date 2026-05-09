@@ -94,27 +94,27 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
+import http from '@/shared/services/http-common.js';
 
 const isEditing = ref(false);
 const fileInput = ref(null);
 const showCountries = ref(false);
+const profileId = ref(null); // ✅ guardamos el id del perfil para poder actualizarlo
 
 const profileData = reactive({
-  name: 'Sergiossss',
-  email: 'sergio@gmail.com',
-  address: 'Lima, Peru',
-  phone: '987654321',
+  name: 'Usuario',
+  email: '',
+  address: 'Lima, Perú',
+  phone: '',
   avatar: null
 });
 
-// Lista de países para el autocompletado
 const countries = [
   'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Ecuador',
   'El Salvador', 'España', 'Estados Unidos', 'Guatemala', 'Honduras', 'México', 'Nicaragua',
   'Panamá', 'Paraguay', 'Perú', 'Puerto Rico', 'República Dominicana', 'Uruguay', 'Venezuela'
 ];
 
-// Filtro dinámico de países
 const filteredCountries = computed(() => {
   if (!profileData.address) return countries;
   return countries.filter(c =>
@@ -127,9 +127,40 @@ const selectCountry = (country) => {
   showCountries.value = false;
 };
 
-onMounted(() => {
+onMounted(async () => {
+  // ✅ Primero carga desde localStorage (respuesta inmediata)
   const saved = localStorage.getItem('finteka_user_profile');
-  if (saved) Object.assign(profileData, JSON.parse(saved));
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    Object.assign(profileData, parsed);
+    profileId.value = parsed.id || null;
+  }
+
+  // ✅ Luego intenta obtener datos actualizados desde el API
+  try {
+    const response = await http.get('/api/profiles');
+    const profiles = response.data || [];
+
+    // Busca el perfil que coincida con el email guardado
+    const match = profiles.find(p => p.email === profileData.email);
+    if (match) {
+      profileId.value = match.id;
+      profileData.name = match.name || match.firstName || profileData.name;
+      profileData.email = match.email || profileData.email;
+      profileData.phone = match.phone || profileData.phone;
+      profileData.address = match.district || match.address || profileData.address;
+
+      // Actualiza localStorage con datos frescos
+      localStorage.setItem('finteka_user_profile', JSON.stringify({
+        ...JSON.parse(saved || '{}'),
+        ...profileData,
+        id: match.id
+      }));
+    }
+  } catch (error) {
+    console.error('Error cargando perfil desde API:', error);
+    // Si falla el API, los datos de localStorage ya están cargados
+  }
 });
 
 const sendNotification = (message) => {
@@ -144,11 +175,31 @@ const sendNotification = (message) => {
   localStorage.setItem('finteka_notificaciones', JSON.stringify(actualesNotif));
 };
 
-const toggleEdit = () => {
+const toggleEdit = async () => {
   if (isEditing.value) {
-    localStorage.setItem('finteka_user_profile', JSON.stringify(profileData));
+    // ✅ Guarda en localStorage siempre
+    const updatedProfile = { ...profileData, id: profileId.value };
+    localStorage.setItem('finteka_user_profile', JSON.stringify(updatedProfile));
     window.dispatchEvent(new Event('profile-updated'));
-    sendNotification('¡Perfil actualizado! Tus datos personales se han guardado correctamente.');
+
+    // ✅ Intenta actualizar en el API si tenemos el id
+    if (profileId.value) {
+      try {
+        await http.put(`/api/profiles/${profileId.value}`, {
+          name: profileData.name,
+          email: profileData.email,
+          phone: profileData.phone,
+          district: profileData.address
+        });
+        sendNotification('¡Perfil actualizado! Tus datos se sincronizaron con el servidor.');
+      } catch (error) {
+        console.error('Error actualizando perfil en API:', error);
+        sendNotification('¡Perfil guardado localmente! No se pudo sincronizar con el servidor.');
+      }
+    } else {
+      sendNotification('¡Perfil actualizado! Tus datos personales se han guardado correctamente.');
+    }
+
     showCountries.value = false;
   }
   isEditing.value = !isEditing.value;
@@ -162,7 +213,7 @@ const onFileSelected = (event) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       profileData.avatar = e.target.result;
-      localStorage.setItem('finteka_user_profile', JSON.stringify(profileData));
+      localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
       window.dispatchEvent(new Event('profile-updated'));
       sendNotification('¡Foto actualizada! Tu avatar se ha cambiado con éxito.');
     };
@@ -172,7 +223,6 @@ const onFileSelected = (event) => {
 </script>
 
 <style scoped>
-/* TU CSS ORIGINAL SE MANTIENE IGUAL */
 .profile-view { width: 100%; font-family: 'Poppins', sans-serif; }
 .cover-photo { height: 160px; background-color: #007B8F; border-radius: 16px; margin: 0 20px; }
 .profile-header { padding: 0 60px; margin-top: -60px; margin-bottom: 30px; }
@@ -201,33 +251,7 @@ const onFileSelected = (event) => {
 .detail-text label { font-size: 12px; color: #9CA3AF; display: block; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
 .detail-text p { font-weight: 700; color: #1F2937; margin-top: 4px; font-size: 15px; }
 .edit-input { width: 100%; padding: 8px; border: 1px solid #D1D5DB; border-radius: 8px; font-family: inherit; margin-top: 4px; }
-
-/* NUEVOS ESTILOS PARA EL DROPDOWN DE PAÍSES */
-.countries-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 100%;
-  background: white;
-  border: 1px solid #E5E7EB;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  z-index: 10;
-  max-height: 150px;
-  overflow-y: auto;
-  list-style: none;
-  padding: 0;
-  margin: 5px 0 0 0;
-}
-.countries-dropdown li {
-  padding: 10px 15px;
-  font-size: 14px;
-  color: #4B5563;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-.countries-dropdown li:hover {
-  background: #F0FBFC;
-  color: #0097B2;
-}
+.countries-dropdown { position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #E5E7EB; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; max-height: 150px; overflow-y: auto; list-style: none; padding: 0; margin: 5px 0 0 0; }
+.countries-dropdown li { padding: 10px 15px; font-size: 14px; color: #4B5563; cursor: pointer; transition: background 0.2s; }
+.countries-dropdown li:hover { background: #F0FBFC; color: #0097B2; }
 </style>

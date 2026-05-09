@@ -16,7 +16,6 @@
             <span class="tag-category">{{ expert.specialty || expert.occupation || 'Asesor' }}</span>
             <span class="tag-location">{{ expert.district || 'San Isidro' }}</span>
           </div>
-
           <div class="quick-stats">
             <div class="stat">
               <span class="stat-value">★ 4.6</span>
@@ -133,6 +132,10 @@
       </div>
     </div>
   </div>
+
+  <div v-else class="loading-screen">
+    <p>Cargando perfil del experto...</p>
+  </div>
 </template>
 
 <script setup>
@@ -158,29 +161,30 @@ const femaleNames = ['mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo'];
 const expertPhoto = computed(() => {
   if (!expert.value) return manAvatar;
   const nameLower = (expert.value.name || '').toLowerCase();
-  const isFemale = femaleNames.some(f => nameLower.includes(f));
-  return isFemale ? womanAvatar : manAvatar;
+  return femaleNames.some(f => nameLower.includes(f)) ? womanAvatar : manAvatar;
 });
 
 const generarCVDinamico = (data) => {
   const esp = (data.specialty || data.occupation || 'Administración').toLowerCase();
-  let cv = {
+  return {
+    ...data,
+    name: data.name || data.firstName,
     about: `¡Hola! Soy ${data.name || data.firstName}, especialista en ${esp}.`,
     experience: [{ role: `Consultor en ${esp}`, years: '2020 - Presente', desc: 'Asesoría profesional.' }],
     education: [{ degree: `Bachiller en ${esp}`, years: '2015 - 2019', desc: 'Universidad de Lima.' }],
     skills: ['Estrategia', 'Análisis', 'Liderazgo']
   };
-  return { ...data, name: data.name || data.firstName, ...cv };
 };
 
 const loadExpertAndReviews = async () => {
   const id = route.params.id;
   try {
+    // ✅ Usa el endpoint correcto de profesionales
     const response = await http.get(`/api/professionals/${id}`);
     expert.value = generarCVDinamico(response.data);
   } catch (error) {
-    console.error("Error cargando el experto", error);
-    // RESPALDO: Para que no se rompa la pantalla si Azure falla
+    console.error('Error cargando el experto:', error);
+    // Fallback si falla Azure
     expert.value = generarCVDinamico({ id, name: 'Asesor FinTeka', specialty: 'Finanzas', price: 75 });
   }
 
@@ -189,29 +193,33 @@ const loadExpertAndReviews = async () => {
 };
 
 const confirmBooking = async () => {
-  if (!bookingDate.value) return alert("Selecciona una fecha.");
+  if (!bookingDate.value) return alert('Selecciona una fecha.');
 
   window.open('https://www.paypal.com', '_blank');
 
-  if (confirm("¿Completaste el pago en PayPal?")) {
+  if (confirm('¿Completaste el pago en PayPal?')) {
     try {
+      // ✅ Obtiene el profileId del usuario logueado
+      const savedProfile = JSON.parse(localStorage.getItem('finteka_user_profile') || '{}');
+      const profileId = savedProfile.id || 1;
+
       await http.post('/api/reservations', {
         startTime: `${bookingDate.value}T${bookingTime.value}:00`,
         professionalId: expert.value.id,
-        profileId: 1,
-        status: "CONFIRMED"
+        profileId: profileId,
+        status: 'CONFIRMED'
       });
 
+      // ✅ También guarda en localStorage para que Mensajes lo vea
       const nuevaReserva = {
         id: Date.now(),
         expertName: expert.value.name,
-        specialty: expert.value.specialty,
+        specialty: expert.value.specialty || expert.value.occupation || 'Especialista',
         date: bookingDate.value,
         time: bookingTime.value,
         status: 'Confirmada',
         paid: expert.value.price || 75
       };
-
       const reservas = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
       reservas.unshift(nuevaReserva);
       localStorage.setItem('finteka_reservas', JSON.stringify(reservas));
@@ -220,20 +228,42 @@ const confirmBooking = async () => {
       showModal.value = false;
       router.push('/reservas');
     } catch (e) {
-      alert("Se simuló el pago pero hubo un error al guardar la cita en Azure.");
+      console.error('Error guardando reserva:', e);
+      alert('Se simuló el pago pero hubo un error al guardar la cita en el servidor.');
     }
   }
 };
 
-const enviarReview = () => {
-  if (rating.value === 0 || !comment.value) return alert("Completa la reseña.");
-  const nuevaReview = { expertId: expert.value.id, rating: rating.value, text: comment.value, date: new Date().toLocaleDateString() };
+const enviarReview = async () => {
+  if (rating.value === 0 || !comment.value) return alert('Completa la reseña.');
+
+  try {
+    // ✅ Intenta guardar en el API
+    await http.post('/api/ratings', {
+      professionalId: expert.value.id,
+      score: rating.value,
+      comment: comment.value
+    });
+  } catch (error) {
+    console.error('Error guardando reseña en API:', error);
+    // Si falla el API, se guarda solo en localStorage
+  }
+
+  // Siempre guarda en localStorage como respaldo
+  const nuevaReview = {
+    expertId: expert.value.id,
+    rating: rating.value,
+    text: comment.value,
+    date: new Date().toLocaleDateString()
+  };
   const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
   allReviews.unshift(nuevaReview);
   localStorage.setItem('finteka_reviews', JSON.stringify(allReviews));
-  rating.value = 0; comment.value = '';
+
+  rating.value = 0;
+  comment.value = '';
   loadExpertAndReviews();
-  alert("¡Reseña publicada!");
+  alert('¡Reseña publicada!');
 };
 
 onMounted(loadExpertAndReviews);
@@ -242,6 +272,7 @@ watch(() => route.params.id, loadExpertAndReviews);
 
 <style scoped>
 .detail-container { padding: 40px; max-width: 1200px; margin: 0 auto; font-family: 'Poppins', sans-serif; }
+.loading-screen { display: flex; align-items: center; justify-content: center; height: 50vh; color: #6B7280; font-family: 'Poppins', sans-serif; }
 .btn-back { display: flex; align-items: center; gap: 8px; background: none; border: none; color: #4B5563; font-weight: 600; cursor: pointer; margin-bottom: 30px; }
 .main-layout { display: grid; grid-template-columns: 320px 1fr; gap: 30px; align-items: start; }
 .card { background: white; border-radius: 16px; border: 1px solid #E5E7EB; padding: 25px; margin-bottom: 25px; }

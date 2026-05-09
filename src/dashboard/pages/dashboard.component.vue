@@ -134,7 +134,7 @@ const getDefaultAvatar = (name) => {
 
 const fetchProfessionals = async () => {
   try {
-    const response = await http.get('/api/profiles');
+    const response = await http.get('/api/professionals');
     professionals.value = (response.data || []).map(p => ({
       ...p,
       name: p.name || p.firstName

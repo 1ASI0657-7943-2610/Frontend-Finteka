@@ -14,11 +14,12 @@ const routes = [
     },
     {
         path: '/',
-        redirect: '/dashboard'
+        redirect: '/login'
     },
     {
         path: '/',
         component: MainLayout,
+        meta: { requiresAuth: true },
         children: [
             {
                 path: 'dashboard',
@@ -52,16 +53,26 @@ const routes = [
             }
         ]
     },
-    // Ruta por defecto para errores 404 (opcional)
     {
         path: '/:pathMatch(.*)*',
-        redirect: '/dashboard'
+        redirect: '/login'
     }
 ];
 
 const router = createRouter({
     history: createWebHistory(),
     routes
+});
+
+router.beforeEach((to) => {
+    const isAuthenticated = !!localStorage.getItem('auth_token');
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+
+    if (requiresAuth && !isAuthenticated) {
+        return { name: 'login' };
+    }
+
+    return true;
 });
 
 export default router;

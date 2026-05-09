@@ -18,7 +18,6 @@
         <button class="filter-pill" :class="{ active: searchQuery === 'finanzas' }" @click="filtrarPorEspecialidad('finanzas')">Finanzas</button>
         <button class="filter-pill" :class="{ active: searchQuery === 'legal' }" @click="filtrarPorEspecialidad('legal')">Legal</button>
         <button class="filter-pill" :class="{ active: searchQuery === 'tecnologia' }" @click="filtrarPorEspecialidad('tecnologia')">Tecnología</button>
-
         <button class="filter-pill fav-pill" :class="{ active: showOnlyFavorites }" @click="toggleFilterFavorites">
           Mis Favoritos
         </button>
@@ -49,7 +48,8 @@
           <div class="card-time">
             <svg class="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-              <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
               <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
             <span>Ubicación: {{ prof.district || 'San Isidro' }}</span>
@@ -82,13 +82,12 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue';
-// IMPORT CORREGIDO PARA EVITAR PANTALLA ROJA
 import http from '@/shared/services/http-common.js';
 
 import defaultMale from '@/assets/user.avatar.png';
 import defaultFemale from '@/assets/user-avatar-female.png';
 
-const userName = ref('Sergio');
+const userName = ref('Usuario'); // ✅ valor por defecto genérico
 const professionals = ref([]);
 const favorites = ref([]);
 const isLoading = ref(true);
@@ -135,7 +134,6 @@ const getDefaultAvatar = (name) => {
 
 const fetchProfessionals = async () => {
   try {
-    // LLAMADA CORREGIDA PARA EVITAR EL DOBLE /api
     const response = await http.get('/api/profiles');
     professionals.value = (response.data || []).map(p => ({
       ...p,
@@ -143,7 +141,6 @@ const fetchProfessionals = async () => {
     })).reverse();
   } catch (error) {
     console.error("Error API:", error);
-    // RESPALDO: Si Azure te sigue bloqueando por CORS, mostramos esto para que la demo no se vea vacía
     professionals.value = [
       { id: 1, name: 'Sergio', specialty: 'Finanzas', district: 'San Isidro', price: 75 },
       { id: 2, name: 'Maria', specialty: 'Legal', district: 'Miraflores', price: 90 }
@@ -159,8 +156,20 @@ const filtrarPorEspecialidad = (esp) => {
 };
 
 onMounted(() => {
+  // ✅ Lee el nombre del usuario guardado en el login
+  const savedProfile = localStorage.getItem('finteka_user_profile');
+  if (savedProfile) {
+    const profile = JSON.parse(savedProfile);
+    userName.value = profile.name || 'Usuario';
+  } else {
+    // fallback: intenta con la clave simple
+    const savedName = localStorage.getItem('userName');
+    if (savedName) userName.value = savedName;
+  }
+
   const savedFavs = localStorage.getItem('finteka_favorites');
   if (savedFavs) favorites.value = JSON.parse(savedFavs);
+
   fetchProfessionals();
 });
 </script>

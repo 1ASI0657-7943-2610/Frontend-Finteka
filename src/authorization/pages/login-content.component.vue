@@ -79,7 +79,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import http from '../../shared/services/http-common.js';
 
@@ -89,6 +89,15 @@ const password = ref('');
 const client = ref('');
 const errorMessage = ref('');
 const isLoading = ref(false);
+
+onMounted(() => {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('finteka_user_profile');
+  localStorage.removeItem('userName');
+  localStorage.removeItem('profileId');
+  localStorage.removeItem('name');
+  localStorage.removeItem('user');
+});
 
 const handleLogin = async () => {
   if (!email.value || !password.value) {
@@ -104,30 +113,36 @@ const handleLogin = async () => {
       params: { email: email.value, password: password.value }
     });
 
-    if (response.status === 200) {
-      // Guardamos el nombre real que devuelve la base de datos
-      const realName = response.data.name || 'Sergio';
+    const res = response.data;
 
-      const userData = {
-        name: realName,
-        email: email.value,
-        avatar: '/user-avatar.png'
-      };
-
-      // Guardamos ambas llaves para asegurar compatibilidad
-      localStorage.setItem('finteka_user_profile', JSON.stringify(userData));
-      localStorage.setItem('userName', realName);
-
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-      }
-
-      window.dispatchEvent(new Event('profile-updated'));
-      router.push('/dashboard');
+    // ✅ El backend devuelve success:false si las credenciales son incorrectas
+    if (!res.success) {
+      errorMessage.value = res.message || 'Credenciales incorrectas.';
+      return;
     }
+
+    const id = res.profileId;
+    const name = res.name || 'Usuario';
+
+    // ✅ Guarda en todas las claves necesarias
+    localStorage.setItem('profileId', id);
+    localStorage.setItem('name', name);
+    localStorage.setItem('user', JSON.stringify(res));
+    localStorage.setItem('auth_token', String(id));
+    localStorage.setItem('finteka_user_profile', JSON.stringify({
+      id,
+      name,
+      email: email.value,
+      avatar: '/user-avatar.png'
+    }));
+    localStorage.setItem('userName', name);
+
+    window.dispatchEvent(new Event('profile-updated'));
+    router.push('/dashboard');
+
   } catch (error) {
-    console.error("Error en login:", error);
-    errorMessage.value = 'Credenciales incorrectas o error de servidor.';
+    console.error('❌ Error en login:', error.response?.status, error.response?.data || error.message);
+    errorMessage.value = 'Error de conexión con el servidor.';
   } finally {
     isLoading.value = false;
   }

@@ -36,7 +36,6 @@
       </div>
     </div>
 
-    <!-- TARJETA DE DETALLES DE PERFIL -->
     <div class="details-card">
       <h3 class="card-title">Detalles de perfil</h3>
       <div class="details-grid">
@@ -146,7 +145,7 @@ const profileData = reactive({
   avatar: null,
   cvUploaded: false,
   cvFileName: '',
-  cvFileData: '' // AQUÍ GUARDAMOS EL ARCHIVO REAL
+  cvFileData: ''
 });
 
 const countries = [
@@ -175,6 +174,7 @@ onMounted(async () => {
     profileId.value = parsed.id || null;
   }
 
+  // 1. Cargamos desde el API
   try {
     const response = await http.get('/api/profiles');
     const profiles = response.data || [];
@@ -194,6 +194,17 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error('Error cargando perfil desde API:', error);
+  }
+
+  // 2. RECUPERAMOS EL CV DESDE LA BASE DE DATOS SIMULADA
+  const cvsDb = JSON.parse(localStorage.getItem('finteka_cvs_db') || '{}');
+  const userEmail = profileData.email || 'default';
+
+  // Si encontramos un CV guardado para este correo específico, lo restauramos
+  if (cvsDb[userEmail]) {
+    profileData.cvUploaded = cvsDb[userEmail].cvUploaded;
+    profileData.cvFileName = cvsDb[userEmail].cvFileName;
+    profileData.cvFileData = cvsDb[userEmail].cvFileData;
   }
 });
 
@@ -251,22 +262,31 @@ const onFileSelected = (event) => {
   }
 };
 
-// --- LÓGICA DEL CV (AHORA LEE EL ARCHIVO REAL) ---
-
 const triggerCVUpload = () => cvInput.value.click();
 
 const onCVSelected = (event) => {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
-    // Leemos el archivo y lo convertimos a Base64 para poder mostrarlo luego
     reader.onload = (e) => {
       profileData.cvUploaded = true;
       profileData.cvFileName = file.name;
-      profileData.cvFileData = e.target.result; // Aquí se guarda el contenido real del PDF
+      profileData.cvFileData = e.target.result;
 
       localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
-      sendNotification('¡CV subido! Tu currículum se adjuntó correctamente.');
+
+      // GUARDAMOS EL CV VINCULADO EXCLUSIVAMENTE AL CORREO DEL USUARIO
+      const cvsDb = JSON.parse(localStorage.getItem('finteka_cvs_db') || '{}');
+      const userEmail = profileData.email || 'default';
+
+      cvsDb[userEmail] = {
+        cvUploaded: true,
+        cvFileName: file.name,
+        cvFileData: e.target.result
+      };
+
+      localStorage.setItem('finteka_cvs_db', JSON.stringify(cvsDb));
+      sendNotification('¡CV subido! Tu currículum se adjuntó correctamente y no se perderá.');
     };
     reader.readAsDataURL(file);
   }
@@ -277,9 +297,17 @@ const removeCV = () => {
   profileData.cvFileName = '';
   profileData.cvFileData = '';
   localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
-  sendNotification('CV eliminado de tu perfil.');
 
-  // Limpiamos el input para que permita volver a subir el mismo archivo si se desea
+  // ELIMINAMOS EL CV TAMBIÉN DE NUESTRA BASE DE DATOS SIMULADA
+  const cvsDb = JSON.parse(localStorage.getItem('finteka_cvs_db') || '{}');
+  const userEmail = profileData.email || 'default';
+
+  if (cvsDb[userEmail]) {
+    delete cvsDb[userEmail];
+    localStorage.setItem('finteka_cvs_db', JSON.stringify(cvsDb));
+  }
+
+  sendNotification('CV eliminado de tu perfil.');
   if(cvInput.value) cvInput.value.value = '';
 };
 
@@ -287,7 +315,6 @@ const viewMiCV = () => {
   if (!profileData.cvFileData) return;
 
   try {
-    // Tomamos el Base64 y lo reconstruimos en un objeto Blob real (el archivo nativo)
     const arr = profileData.cvFileData.split(',');
     const mime = arr[0].match(/:(.*?);/)[1];
     const bstr = atob(arr[1]);
@@ -301,11 +328,9 @@ const viewMiCV = () => {
     const blob = new Blob([u8arr], {type: mime});
     const url = URL.createObjectURL(blob);
 
-    // Abre el PDF usando el visor nativo de Edge/Chrome
     window.open(url, '_blank');
 
   } catch (error) {
-    // Si algo falla, lo abrimos en un iframe (Fallback)
     console.error('Error procesando el PDF:', error);
     const win = window.open();
     if(win) win.document.write(`<iframe src="${profileData.cvFileData}" style="width:100%; height:100vh; border:none; margin:0; padding:0;"></iframe>`);

@@ -17,7 +17,7 @@
         <button class="filter-pill" :class="{ active: searchQuery === '' }" @click="filtrarPorEspecialidad('')">Todos</button>
         <button class="filter-pill" :class="{ active: searchQuery === 'finanzas' }" @click="filtrarPorEspecialidad('finanzas')">Finanzas</button>
         <button class="filter-pill" :class="{ active: searchQuery === 'legal' }" @click="filtrarPorEspecialidad('legal')">Legal</button>
-        <button class="filter-pill" :class="{ active: searchQuery === 'tecnologia' }" @click="filtrarPorEspecialidad('tecnologia')">Tecnología</button>
+        <button class="filter-pill" :class="{ active: searchQuery === 'tecnología' }" @click="filtrarPorEspecialidad('tecnología')">Tecnología</button>
         <button class="filter-pill fav-pill" :class="{ active: showOnlyFavorites }" @click="toggleFilterFavorites">
           Mis Favoritos
         </button>
@@ -71,7 +71,7 @@
           <img src="../../assets/finanzas.png" alt="Anuncio" class="specialty-icon-img" />
           <h4>Anuncio</h4>
         </div>
-        <div class="specialty-card" @click="filtrarPorEspecialidad('tecnologia')">
+        <div class="specialty-card" @click="filtrarPorEspecialidad('tecnología')">
           <img src="../../assets/icon-tecnologia.png" alt="Tecnología" class="specialty-icon-img" />
           <h4>Tecnologia</h4>
         </div>
@@ -87,7 +87,7 @@ import http from '@/shared/services/http-common.js';
 import defaultMale from '@/assets/user.avatar.png';
 import defaultFemale from '@/assets/user-avatar-female.png';
 
-const userName = ref('Usuario'); // ✅ valor por defecto genérico
+const userName = ref('Usuario');
 const professionals = ref([]);
 const favorites = ref([]);
 const isLoading = ref(true);
@@ -128,7 +128,19 @@ const isValidImage = (url) => url && url !== 'string' && url.startsWith('http');
 
 const getDefaultAvatar = (name) => {
   if (!name) return defaultMale;
-  const femaleNames = ['mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo'];
+  const femaleNames = [
+    'mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo', 'carmen', 'natalia', 'valeria', 'elena',
+    'laura', 'marta', 'andrea', 'alba', 'paula', 'julia', 'claudia', 'sara', 'irene', 'patricia',
+    'silvia', 'rosa', 'teresa', 'beatriz', 'nuria', 'raquel', 'marina', 'angela', 'diana', 'victoria',
+    'eva', 'lorena', 'monica', 'isabel', 'gloria', 'rocio', 'alicia', 'cristina', 'alejandra', 'gabriela',
+    'daniela', 'valentina', 'camila', 'martina', 'emilia', 'catalina', 'isabella', 'antonella', 'luna', 'zoe',
+    'alma', 'olivia', 'emma', 'abigail', 'amanda', 'blanca', 'carla', 'celia', 'clara', 'elisa',
+    'esperanza', 'estela', 'ester', 'fatima', 'flora', 'ines', 'judith', 'lidia', 'lourdes', 'margarita',
+    'mercedes', 'miriam', 'noelia', 'paloma', 'pilar', 'rebeca', 'rosario', 'susana', 'vanesa', 'veronica',
+    'yolanda', 'adriana', 'aitana', 'ariadna', 'cayetana', 'cruz', 'estefania', 'jimena', 'lara', 'leire',
+    'lola', 'macarena', 'manuela', 'mar', 'nerea', 'romina', 'tatiana', 'ximena', 'yamila', 'zaira',
+    'flor', 'liz', 'milagros', 'angie', 'brenda', 'carolina', 'denisse', 'erika', 'fabiana'
+  ];
   return femaleNames.some(f => name.toLowerCase().includes(f)) ? defaultFemale : defaultMale;
 };
 
@@ -156,13 +168,11 @@ const filtrarPorEspecialidad = (esp) => {
 };
 
 onMounted(() => {
-  // ✅ Lee el nombre del usuario guardado en el login
   const savedProfile = localStorage.getItem('finteka_user_profile');
   if (savedProfile) {
     const profile = JSON.parse(savedProfile);
     userName.value = profile.name || 'Usuario';
   } else {
-    // fallback: intenta con la clave simple
     const savedName = localStorage.getItem('userName');
     if (savedName) userName.value = savedName;
   }

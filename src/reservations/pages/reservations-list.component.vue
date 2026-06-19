@@ -5,12 +5,8 @@
       <p class="page-subtitle">Gestiona tus próximas sesiones con expertos.</p>
     </header>
 
-    <div v-if="isLoading" class="empty-state">
-      <div class="empty-icon">⏳</div>
-      <h3>Cargando reservas...</h3>
-    </div>
-
-    <div v-else-if="myReservations.length > 0" class="reservations-grid">
+    <!-- Solo mostramos la cuadrícula si hay reservas en localStorage -->
+    <div v-if="myReservations.length > 0" class="reservations-grid">
       <div v-for="res in myReservations" :key="res.id" class="reservation-card">
         <div class="card-content">
           <div class="expert-thumb">
@@ -34,7 +30,7 @@
           </div>
 
           <div class="card-actions">
-            <div class="status-pill" :class="res.status.toLowerCase()">
+            <div class="status-pill confirmada">
               {{ res.status }}
             </div>
             <button class="btn-join" @click="joinMeeting(res.id)">
@@ -45,83 +41,60 @@
       </div>
     </div>
 
+    <!-- Si no hay reservas en localStorage, mostramos el mensaje de vacío -->
     <div v-else class="empty-state">
       <div class="empty-icon">📅</div>
       <h3>No tienes reservas pendientes</h3>
       <p>Explora nuestro directorio y agenda tu primera asesoría.</p>
-      <button class="btn-explore" @click="$router.push('/dashboard')">Explorar Expertos</button>
+      <button class="btn-explore" @click="$router.push('/profesionales')">Explorar Expertos</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import http from '@/shared/services/http-common.js';
 
 import manAvatar from '@/assets/user.avatar.png';
 import womanAvatar from '@/assets/user-avatar-female.png';
 
 const myReservations = ref([]);
-const isLoading = ref(true);
 
-const femaleNames = ['mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo'];
+// Lista completa de nombres para detectar género
+const femaleNames = [
+  'mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo', 'carmen', 'natalia', 'valeria', 'elena',
+  'laura', 'marta', 'andrea', 'alba', 'paula', 'julia', 'claudia', 'sara', 'irene', 'patricia',
+  'silvia', 'rosa', 'teresa', 'beatriz', 'nuria', 'raquel', 'marina', 'angela', 'diana', 'victoria',
+  'eva', 'lorena', 'monica', 'isabel', 'gloria', 'rocio', 'alicia', 'cristina', 'alejandra', 'gabriela',
+  'daniela', 'valentina', 'camila', 'martina', 'emilia', 'catalina', 'isabella', 'antonella', 'luna', 'zoe',
+  'alma', 'olivia', 'emma', 'abigail', 'amanda', 'blanca', 'carla', 'celia', 'clara', 'elisa',
+  'esperanza', 'estela', 'ester', 'fatima', 'flora', 'ines', 'judith', 'lidia', 'lourdes', 'margarita',
+  'mercedes', 'miriam', 'noelia', 'paloma', 'pilar', 'rebeca', 'rosario', 'susana', 'vanesa', 'veronica',
+  'yolanda', 'adriana', 'aitana', 'ariadna', 'cayetana', 'cruz', 'estefania', 'jimena', 'lara', 'leire',
+  'lola', 'macarena', 'manuela', 'mar', 'nerea', 'romina', 'tatiana', 'ximena', 'yamila', 'zaira',
+  'flor', 'liz', 'milagros', 'angie', 'brenda', 'carolina', 'denisse', 'erika', 'fabiana'
+];
 
 const getPhoto = (name = '') => {
   const isFemale = femaleNames.some(f => name.toLowerCase().includes(f));
   return isFemale ? womanAvatar : manAvatar;
 };
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' });
-};
+onMounted(() => {
+  // Carga ÚNICAMENTE las reservas del usuario local (simuladas en el flujo de pago)
+  const saved = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
 
-const formatTime = (dateStr) => {
-  if (!dateStr) return '—';
-  const d = new Date(dateStr);
-  return d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-};
-
-const mapStatus = (status = '') => {
-  const map = { CONFIRMED: 'Confirmada', PENDING: 'Pendiente', CANCELLED: 'Cancelada' };
-  return map[status.toUpperCase()] || status;
-};
-
-onMounted(async () => {
-  try {
-    const response = await http.get('/api/reservations');
-    const data = response.data || [];
-
-    myReservations.value = data.map(res => {
-      const expertName = res.professionalName || res.professional?.name || 'Experto FinTeka';
-      return {
-        id: res.id,
-        expertName,
-        specialty: res.professional?.specialty || res.specialty || 'Especialista',
-        date: formatDate(res.startTime),
-        time: formatTime(res.startTime),
-        status: mapStatus(res.status),
-        expertPhoto: getPhoto(expertName)
-      };
-    });
-  } catch (error) {
-    console.error('Error cargando reservas:', error);
-    // Fallback a localStorage si el API falla
-    const saved = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
-    myReservations.value = saved.map(res => ({
-      ...res,
-      expertPhoto: getPhoto(res.expertName)
-    }));
-  } finally {
-    isLoading.value = false;
-  }
+  myReservations.value = saved.map(res => ({
+    ...res,
+    expertPhoto: getPhoto(res.expertName),
+    status: res.status || 'Confirmada'
+  }));
 });
 
 const joinMeeting = (id) => alert(`Iniciando sesión de videollamada para reserva #${id}...`);
 </script>
 
 <style scoped>
+/* (Tus estilos originales se mantienen) */
 .reservations-container { padding: 40px; max-width: 1000px; margin: 0 auto; font-family: 'Poppins', sans-serif; }
 .page-header { margin-bottom: 40px; }
 .page-title { font-size: 28px; font-weight: 800; color: #1F2937; margin: 0; }
@@ -140,8 +113,6 @@ const joinMeeting = (id) => alert(`Iniciando sesión de videollamada para reserv
 .card-actions { text-align: right; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
 .status-pill { font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; }
 .status-pill.confirmada { background: #DCFCE7; color: #166534; }
-.status-pill.pendiente { background: #FEF9C3; color: #854D0E; }
-.status-pill.cancelada { background: #FEE2E2; color: #991B1B; }
 .btn-join { background: #0097B2; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 13px; }
 .btn-join:hover { background: #007A8F; }
 .empty-state { text-align: center; padding: 80px 20px; }

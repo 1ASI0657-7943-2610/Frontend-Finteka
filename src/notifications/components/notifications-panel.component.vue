@@ -23,7 +23,6 @@
     </div>
 
     <div class="notifications-list">
-
       <div v-if="filteredNotifications.length === 0" style="padding: 20px; text-align: center; color: #6b7280; font-size: 13px;">
         No tienes notificaciones en esta categoría.
       </div>
@@ -38,7 +37,6 @@
           <span class="time">{{ notif.date }}</span>
         </div>
       </div>
-
     </div>
 
     <div class="panel-footer">
@@ -48,43 +46,48 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 
 const notifications = ref([]);
 const activeTab = ref('All');
+
+const cargarNotificaciones = () => {
+  let saved = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
+
+  if (saved.length === 0) {
+    const defaults = [
+      { id: 1, type: 'Sistema', text: '¡Bienvenido a FinTeka! Explora nuestro directorio de expertos.', date: 'Hoy', read: false }
+    ];
+    localStorage.setItem('finteka_notificaciones', JSON.stringify(defaults));
+    notifications.value = defaults;
+  } else {
+    // Normalizamos los datos de la reserva simulada para que encajen en el diseño
+    notifications.value = saved.map(notif => ({
+      ...notif,
+      type: notif.type === 'success' ? 'Cita' : (notif.type || 'Sistema'),
+      text: notif.text || notif.description || notif.title
+    }));
+  }
+};
 
 onMounted(() => {
   cargarNotificaciones();
 });
 
-const cargarNotificaciones = () => {
-  const saved = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
+// Esto permite que el panel se actualice si abres la ventana justo después de reservar
+watch(() => localStorage.getItem('finteka_notificaciones'), () => {
+  cargarNotificaciones();
+});
 
-  // Si está vacío, insertamos un par de notificaciones de prueba acordes a FinTeka
-  if (saved.length === 0) {
-    const defaults = [
-      { id: 1, type: 'Cita', text: '¡Reserva confirmada! Tienes una asesoría en Finanzas con Maria.', date: 'Hoy, hace 2 min', read: false },
-      { id: 2, type: 'Sistema', text: '¡Bienvenido a FinTeka! Explora nuestro directorio de expertos.', date: 'Ayer', read: true }
-    ];
-    localStorage.setItem('finteka_notificaciones', JSON.stringify(defaults));
-    notifications.value = defaults;
-  } else {
-    notifications.value = saved;
-  }
-};
-
-// Filtro para las pestañas
 const filteredNotifications = computed(() => {
   if (activeTab.value === 'All') return notifications.value;
   return notifications.value.filter(n => n.type === activeTab.value);
 });
 
-// Contador de no leídas para la bolita negra (badge)
 const unreadCount = computed(() => {
   return notifications.value.filter(n => !n.read).length;
 });
 
-// Función para marcar como leídas
 const marcarTodoLeido = () => {
   notifications.value.forEach(n => n.read = true);
   localStorage.setItem('finteka_notificaciones', JSON.stringify(notifications.value));
@@ -92,7 +95,6 @@ const marcarTodoLeido = () => {
 </script>
 
 <style scoped>
-/* TU CSS ORIGINAL INTACTO */
 .notifications-panel { position: absolute; top: 20px; left: 20px; width: 480px; background: white; border: 1px solid #0097B2; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); z-index: 1000; display: flex; flex-direction: column; max-height: 80vh; }
 .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; }
 .panel-header h2 { font-size: 16px; font-weight: 700; margin: 0; }
@@ -104,7 +106,6 @@ const marcarTodoLeido = () => {
 .alert-banner { display: flex; gap: 10px; padding: 12px 20px; background-color: #F9FAFB; border-bottom: 1px solid #E5E7EB; }
 .alert-banner p { font-size: 12px; color: #0097B2; margin: 0; font-weight: 500; }
 .notifications-list { padding: 0 20px; overflow-y: auto; }
-.date-group { font-size: 12px; color: #6B7280; margin: 15px 0 10px; font-weight: 600; }
 .notif-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #E5E7EB; }
 .notif-content p { font-size: 12px; font-weight: 600; color: #111; margin: 0 0 4px; line-height: 1.4; }
 .notif-content .time { font-size: 11px; color: #9CA3AF; }

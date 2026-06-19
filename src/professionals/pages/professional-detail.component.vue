@@ -34,7 +34,7 @@
             <span class="period">/ hora</span>
           </div>
           <p class="status-badge"><span class="dot"></span> Disponible ahora</p>
-          <button class="btn-reserve" @click="showModal = true">Reservar sesión</button>
+          <button class="btn-reserve" @click="openModal">Reservar sesión</button>
         </div>
       </aside>
 
@@ -99,11 +99,11 @@
       </section>
     </div>
 
-    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+    <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal-content">
         <div class="modal-header">
           <h2>Confirmar Cita</h2>
-          <button class="btn-close-x" @click="showModal = false">×</button>
+          <button class="btn-close-x" @click="closeModal" :disabled="isSimulating">×</button>
         </div>
         <div class="modal-body">
           <p class="modal-intro">Reserva con <strong>{{ expert.name }}</strong></p>
@@ -113,11 +113,11 @@
           </div>
           <div class="input-group">
             <label>Fecha de la sesión</label>
-            <input type="date" v-model="bookingDate" class="modal-input" />
+            <input type="date" v-model="bookingDate" class="modal-input" :disabled="isWaitingForPayment || isSimulating" />
           </div>
           <div class="input-group">
             <label>Hora disponible</label>
-            <select v-model="bookingTime" class="modal-input">
+            <select v-model="bookingTime" class="modal-input" :disabled="isWaitingForPayment || isSimulating">
               <option value="09:00">09:00 AM</option>
               <option value="11:00">11:00 AM</option>
               <option value="14:00">02:00 PM</option>
@@ -125,10 +125,20 @@
             </select>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn-modal-cancel" @click="showModal = false">Cancelar</button>
-          <button class="btn-modal-confirm" @click="confirmBooking">Pagar y Confirmar</button>
+
+        <div class="modal-footer" v-if="!isWaitingForPayment">
+          <button class="btn-modal-cancel" @click="closeModal">Cancelar</button>
+          <button class="btn-modal-confirm" @click="initiatePayment">Ir a Pagar</button>
         </div>
+
+        <div class="modal-footer payment-simulation-footer" v-else>
+          <p class="simulation-text">Se abrió la pestaña de PayPal. Vuelve aquí para simular que el pago fue exitoso.</p>
+          <button class="btn-modal-confirm simulate-btn" @click="processSimulatedPayment" :disabled="isSimulating">
+            {{ isSimulating ? 'Guardando reserva...' : 'Simular Pago Exitoso' }}
+          </button>
+          <button class="btn-text-cancel" @click="closeModal" :disabled="isSimulating">Cancelar operación</button>
+        </div>
+
       </div>
     </div>
   </div>
@@ -156,7 +166,18 @@ const showModal = ref(false);
 const bookingDate = ref('');
 const bookingTime = ref('14:00');
 
-const femaleNames = ['mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo'];
+const isWaitingForPayment = ref(false);
+const isSimulating = ref(false);
+
+const femaleNames = [
+  'mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo', 'carmen', 'natalia', 'valeria', 'elena',
+  'laura', 'marta', 'andrea', 'alba', 'paula', 'julia', 'claudia', 'sara', 'irene', 'patricia',
+  'silvia', 'rosa', 'teresa', 'beatriz', 'nuria', 'raquel', 'marina', 'angela', 'diana', 'victoria',
+  'eva', 'lorena', 'monica', 'isabel', 'gloria', 'rocio', 'alicia', 'cristina', 'alejandra', 'gabriela',
+  'daniela', 'valentina', 'camila', 'martina', 'emilia', 'catalina', 'isabella', 'antonella', 'luna', 'zoe',
+  'alma', 'olivia', 'emma', 'abigail', 'amanda', 'blanca', 'carla', 'celia', 'clara', 'elisa',
+  'esperanza', 'estela', 'ester', 'fatima', 'flora', 'ines', 'judith', 'lidia', 'lourdes', 'margarita'
+];
 
 const expertPhoto = computed(() => {
   if (!expert.value) return manAvatar;
@@ -179,82 +200,88 @@ const generarCVDinamico = (data) => {
 const loadExpertAndReviews = async () => {
   const id = route.params.id;
   try {
-    // ✅ Usa el endpoint correcto de profesionales
     const response = await http.get(`/api/professionals/${id}`);
     expert.value = generarCVDinamico(response.data);
   } catch (error) {
-    console.error('Error cargando el experto:', error);
-    // Fallback si falla Azure
     expert.value = generarCVDinamico({ id, name: 'Asesor FinTeka', specialty: 'Finanzas', price: 75 });
   }
-
   const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
   expertReviews.value = allReviews.filter(r => r.expertId == id);
 };
 
-const confirmBooking = async () => {
-  if (!bookingDate.value) return alert('Selecciona una fecha.');
+const openModal = () => {
+  showModal.value = true;
+  isWaitingForPayment.value = false;
+};
 
+const closeModal = () => {
+  if (isSimulating.value) return;
+  showModal.value = false;
+  isWaitingForPayment.value = false;
+};
+
+const initiatePayment = () => {
+  if (!bookingDate.value) return alert('Por favor, selecciona una fecha para tu sesión.');
   window.open('https://www.paypal.com', '_blank');
+  isWaitingForPayment.value = true;
+};
 
-  if (confirm('¿Completaste el pago en PayPal?')) {
-    try {
-      // ✅ Obtiene el profileId del usuario logueado
-      const savedProfile = JSON.parse(localStorage.getItem('finteka_user_profile') || '{}');
-      const profileId = savedProfile.id || 1;
+const processSimulatedPayment = async () => {
+  isSimulating.value = true;
 
-      await http.post('/api/reservations', {
-        startTime: `${bookingDate.value}T${bookingTime.value}:00`,
-        professionalId: expert.value.id,
-        profileId: profileId,
-        status: 'CONFIRMED'
-      });
-
-      // ✅ También guarda en localStorage para que Mensajes lo vea
-      const nuevaReserva = {
-        id: Date.now(),
-        expertName: expert.value.name,
-        specialty: expert.value.specialty || expert.value.occupation || 'Especialista',
-        date: bookingDate.value,
-        time: bookingTime.value,
-        status: 'Confirmada',
-        paid: expert.value.price || 75
-      };
-      const reservas = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
-      reservas.unshift(nuevaReserva);
-      localStorage.setItem('finteka_reservas', JSON.stringify(reservas));
-
-      alert(`Pago exitoso. Cita agendada con ${expert.value.name}.`);
-      showModal.value = false;
-      router.push('/reservas');
-    } catch (e) {
-      console.error('Error guardando reserva:', e);
-      alert('Se simuló el pago pero hubo un error al guardar la cita en el servidor.');
-    }
+  // 1. Intentamos guardar en la base de datos (si falla, lo ignoramos para que la app no se rompa)
+  try {
+    const savedProfile = JSON.parse(localStorage.getItem('finteka_user_profile') || '{}');
+    const profileId = savedProfile.id || 1;
+    await http.post('/api/reservations', {
+      startTime: `${bookingDate.value}T${bookingTime.value}:00`,
+      professionalId: expert.value.id,
+      profileId: profileId,
+      status: 'CONFIRMED'
+    });
+  } catch (e) {
+    console.error('Error guardando en BD, pero simularemos el éxito localmente.');
   }
+
+  // 2. Guardamos la reserva localmente para que aparezca en "Mis Reservas"
+  const nuevaReserva = {
+    id: Date.now(),
+    expertName: expert.value.name,
+    specialty: expert.value.specialty || expert.value.occupation || 'Especialista',
+    date: bookingDate.value,
+    time: bookingTime.value,
+    status: 'Confirmada',
+    paid: expert.value.price || 75
+  };
+  const reservas = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
+  reservas.unshift(nuevaReserva);
+  localStorage.setItem('finteka_reservas', JSON.stringify(reservas));
+
+  // 3. GENERAMOS LA NOTIFICACIÓN PARA LA VENTANITA
+  const notifs = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
+  notifs.unshift({
+    id: Date.now(),
+    type: 'Cita',
+    text: `¡Reserva confirmada! Tienes una asesoría en ${nuevaReserva.specialty} con ${nuevaReserva.expertName}.`,
+    date: 'Justo ahora',
+    read: false
+  });
+  localStorage.setItem('finteka_notificaciones', JSON.stringify(notifs));
+
+  alert(`Pago simulado exitosamente. Tu cita con ${expert.value.name} está confirmada.`);
+  isSimulating.value = false;
+  closeModal();
+  router.push('/reservas');
 };
 
 const enviarReview = async () => {
   if (rating.value === 0 || !comment.value) return alert('Completa la reseña.');
-
   try {
-    // ✅ Intenta guardar en el API
-    await http.post('/api/ratings', {
-      professionalId: expert.value.id,
-      score: rating.value,
-      comment: comment.value
-    });
-  } catch (error) {
-    console.error('Error guardando reseña en API:', error);
-    // Si falla el API, se guarda solo en localStorage
-  }
+    await http.post('/api/ratings', { professionalId: expert.value.id, score: rating.value, comment: comment.value });
+  } catch (error) {}
 
-  // Siempre guarda en localStorage como respaldo
   const nuevaReview = {
-    expertId: expert.value.id,
-    rating: rating.value,
-    text: comment.value,
-    date: new Date().toLocaleDateString()
+    expertId: expert.value.id, rating: rating.value, text: comment.value, date: new Date().toLocaleDateString()
   };
   const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
   allReviews.unshift(nuevaReview);
@@ -315,9 +342,18 @@ watch(() => route.params.id, loadExpertAndReviews);
 .input-group { margin-bottom: 20px; }
 .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .modal-input { width: 100%; padding: 12px; border: 1px solid #E5E7EB; border-radius: 10px; outline: none; }
+.modal-input:disabled { background: #F3F4F6; color: #9CA3AF; cursor: not-allowed; }
 .modal-footer { display: flex; gap: 12px; }
 .btn-modal-cancel { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #E5E7EB; cursor: pointer; }
-.btn-modal-confirm { flex: 1; padding: 12px; border-radius: 10px; background: #0097B2; color: white; font-weight: 700; border: none; cursor: pointer; }
+.btn-modal-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-modal-confirm { flex: 1; padding: 12px; border-radius: 10px; background: #0097B2; color: white; font-weight: 700; border: none; cursor: pointer; transition: 0.2s; }
+.btn-modal-confirm:disabled { background: #6B7280; cursor: wait; }
+.payment-simulation-footer { display: flex; flex-direction: column; text-align: center; gap: 12px; }
+.simulation-text { font-size: 13px; color: #4B5563; margin: 0; font-weight: 500; }
+.simulate-btn { width: 100%; padding: 12px; border-radius: 10px; background: #10B981; color: white; font-weight: 700; border: none; cursor: pointer; transition: 0.2s; }
+.simulate-btn:hover { background: #059669; }
+.simulate-btn:disabled { background: #6B7280; cursor: wait; }
+.btn-text-cancel { background: none; border: none; color: #EF4444; font-size: 13px; cursor: pointer; text-decoration: underline; margin-top: 5px; }
 .cv-section { margin-bottom: 25px; }
 .cv-subtitle { font-size: 16px; font-weight: 700; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
 .timeline-item { position: relative; padding-left: 20px; margin-bottom: 20px; border-left: 2px solid #E5E7EB; }

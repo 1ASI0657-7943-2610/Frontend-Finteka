@@ -6,7 +6,7 @@
       <button class="pill" :class="{ active: selectedCategory === 'Todos' }" @click="selectedCategory = 'Todos'">Todos</button>
       <button class="pill" :class="{ active: selectedCategory === 'Finanzas' }" @click="selectedCategory = 'Finanzas'">Finanzas</button>
       <button class="pill" :class="{ active: selectedCategory === 'Legal' }" @click="selectedCategory = 'Legal'">Legal</button>
-      <button class="pill" :class="{ active: selectedCategory === 'Tecnologia' }" @click="selectedCategory = 'Tecnologia'">Tecnologia</button>
+      <button class="pill" :class="{ active: selectedCategory === 'Tecnología' }" @click="selectedCategory = 'Tecnología'">Tecnología</button>
     </nav>
 
     <div v-if="isLoading" class="loading">Cargando expertos...</div>
@@ -60,7 +60,19 @@ const professionals = ref([]);
 const isLoading = ref(true);
 const selectedCategory = ref('Todos');
 
-const femaleNames = ['mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo'];
+const femaleNames = [
+  'mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo', 'carmen', 'natalia', 'valeria', 'elena',
+  'laura', 'marta', 'andrea', 'alba', 'paula', 'julia', 'claudia', 'sara', 'irene', 'patricia',
+  'silvia', 'rosa', 'teresa', 'beatriz', 'nuria', 'raquel', 'marina', 'angela', 'diana', 'victoria',
+  'eva', 'lorena', 'monica', 'isabel', 'gloria', 'rocio', 'alicia', 'cristina', 'alejandra', 'gabriela',
+  'daniela', 'valentina', 'camila', 'martina', 'emilia', 'catalina', 'isabella', 'antonella', 'luna', 'zoe',
+  'alma', 'olivia', 'emma', 'abigail', 'amanda', 'blanca', 'carla', 'celia', 'clara', 'elisa',
+  'esperanza', 'estela', 'ester', 'fatima', 'flora', 'ines', 'judith', 'lidia', 'lourdes', 'margarita',
+  'mercedes', 'miriam', 'noelia', 'paloma', 'pilar', 'rebeca', 'rosario', 'susana', 'vanesa', 'veronica',
+  'yolanda', 'adriana', 'aitana', 'ariadna', 'cayetana', 'cruz', 'estefania', 'jimena', 'lara', 'leire',
+  'lola', 'macarena', 'manuela', 'mar', 'nerea', 'romina', 'tatiana', 'ximena', 'yamila', 'zaira',
+  'flor', 'liz', 'milagros', 'angie', 'brenda', 'carolina', 'denisse', 'erika', 'fabiana'
+];
 
 // ✅ Usa imports en vez de rutas string para evitar errores en producción
 const getGenderPhoto = (name) => {

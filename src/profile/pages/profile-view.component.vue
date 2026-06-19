@@ -36,6 +36,7 @@
       </div>
     </div>
 
+    <!-- TARJETA DE DETALLES DE PERFIL -->
     <div class="details-card">
       <h3 class="card-title">Detalles de perfil</h3>
       <div class="details-grid">
@@ -89,6 +90,41 @@
         </div>
       </div>
     </div>
+
+    <!-- TARJETA: GESTIÓN DE CV -->
+    <div class="details-card" style="margin-top: 25px;">
+      <h3 class="card-title">Mi Currículum Profesional</h3>
+      <div class="cv-section">
+
+        <div v-if="!profileData.cvUploaded" class="cv-empty-state">
+          <div class="cv-icon-large">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+          </div>
+          <p>Sube tu CV para que los clientes puedan conocer tu trayectoria.</p>
+          <button class="btn-upload-cv" @click="triggerCVUpload">Adjuntar Currículum</button>
+          <input type="file" ref="cvInput" accept=".pdf,.doc,.docx" style="display: none;" @change="onCVSelected" />
+        </div>
+
+        <div v-else class="cv-active-state">
+          <div class="cv-document-info">
+            <div class="cv-file-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            </div>
+            <div class="cv-file-details">
+              <h4>{{ profileData.cvFileName }}</h4>
+              <span>Subido exitosamente</span>
+            </div>
+          </div>
+          <div class="cv-actions">
+            <button class="btn-view-cv" @click="viewMiCV">Ver PDF</button>
+            <button class="btn-remove-cv" @click="removeCV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </div>
 </template>
 
@@ -98,15 +134,19 @@ import http from '@/shared/services/http-common.js';
 
 const isEditing = ref(false);
 const fileInput = ref(null);
+const cvInput = ref(null);
 const showCountries = ref(false);
-const profileId = ref(null); // ✅ guardamos el id del perfil para poder actualizarlo
+const profileId = ref(null);
 
 const profileData = reactive({
   name: 'Usuario',
   email: '',
   address: 'Lima, Perú',
   phone: '',
-  avatar: null
+  avatar: null,
+  cvUploaded: false,
+  cvFileName: '',
+  cvFileData: '' // AQUÍ GUARDAMOS EL ARCHIVO REAL
 });
 
 const countries = [
@@ -128,7 +168,6 @@ const selectCountry = (country) => {
 };
 
 onMounted(async () => {
-  // ✅ Primero carga desde localStorage (respuesta inmediata)
   const saved = localStorage.getItem('finteka_user_profile');
   if (saved) {
     const parsed = JSON.parse(saved);
@@ -136,12 +175,9 @@ onMounted(async () => {
     profileId.value = parsed.id || null;
   }
 
-  // ✅ Luego intenta obtener datos actualizados desde el API
   try {
     const response = await http.get('/api/profiles');
     const profiles = response.data || [];
-
-    // Busca el perfil que coincida con el email guardado
     const match = profiles.find(p => p.email === profileData.email);
     if (match) {
       profileId.value = match.id;
@@ -150,7 +186,6 @@ onMounted(async () => {
       profileData.phone = match.phone || profileData.phone;
       profileData.address = match.district || match.address || profileData.address;
 
-      // Actualiza localStorage con datos frescos
       localStorage.setItem('finteka_user_profile', JSON.stringify({
         ...JSON.parse(saved || '{}'),
         ...profileData,
@@ -159,7 +194,6 @@ onMounted(async () => {
     }
   } catch (error) {
     console.error('Error cargando perfil desde API:', error);
-    // Si falla el API, los datos de localStorage ya están cargados
   }
 });
 
@@ -177,12 +211,10 @@ const sendNotification = (message) => {
 
 const toggleEdit = async () => {
   if (isEditing.value) {
-    // ✅ Guarda en localStorage siempre
     const updatedProfile = { ...profileData, id: profileId.value };
     localStorage.setItem('finteka_user_profile', JSON.stringify(updatedProfile));
     window.dispatchEvent(new Event('profile-updated'));
 
-    // ✅ Intenta actualizar en el API si tenemos el id
     if (profileId.value) {
       try {
         await http.put(`/api/profiles/${profileId.value}`, {
@@ -193,13 +225,11 @@ const toggleEdit = async () => {
         });
         sendNotification('¡Perfil actualizado! Tus datos se sincronizaron con el servidor.');
       } catch (error) {
-        console.error('Error actualizando perfil en API:', error);
         sendNotification('¡Perfil guardado localmente! No se pudo sincronizar con el servidor.');
       }
     } else {
       sendNotification('¡Perfil actualizado! Tus datos personales se han guardado correctamente.');
     }
-
     showCountries.value = false;
   }
   isEditing.value = !isEditing.value;
@@ -220,10 +250,71 @@ const onFileSelected = (event) => {
     reader.readAsDataURL(file);
   }
 };
+
+// --- LÓGICA DEL CV (AHORA LEE EL ARCHIVO REAL) ---
+
+const triggerCVUpload = () => cvInput.value.click();
+
+const onCVSelected = (event) => {
+  const file = event.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    // Leemos el archivo y lo convertimos a Base64 para poder mostrarlo luego
+    reader.onload = (e) => {
+      profileData.cvUploaded = true;
+      profileData.cvFileName = file.name;
+      profileData.cvFileData = e.target.result; // Aquí se guarda el contenido real del PDF
+
+      localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
+      sendNotification('¡CV subido! Tu currículum se adjuntó correctamente.');
+    };
+    reader.readAsDataURL(file);
+  }
+};
+
+const removeCV = () => {
+  profileData.cvUploaded = false;
+  profileData.cvFileName = '';
+  profileData.cvFileData = '';
+  localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
+  sendNotification('CV eliminado de tu perfil.');
+
+  // Limpiamos el input para que permita volver a subir el mismo archivo si se desea
+  if(cvInput.value) cvInput.value.value = '';
+};
+
+const viewMiCV = () => {
+  if (!profileData.cvFileData) return;
+
+  try {
+    // Tomamos el Base64 y lo reconstruimos en un objeto Blob real (el archivo nativo)
+    const arr = profileData.cvFileData.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+
+    while(n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+
+    const blob = new Blob([u8arr], {type: mime});
+    const url = URL.createObjectURL(blob);
+
+    // Abre el PDF usando el visor nativo de Edge/Chrome
+    window.open(url, '_blank');
+
+  } catch (error) {
+    // Si algo falla, lo abrimos en un iframe (Fallback)
+    console.error('Error procesando el PDF:', error);
+    const win = window.open();
+    if(win) win.document.write(`<iframe src="${profileData.cvFileData}" style="width:100%; height:100vh; border:none; margin:0; padding:0;"></iframe>`);
+  }
+};
 </script>
 
 <style scoped>
-.profile-view { width: 100%; font-family: 'Poppins', sans-serif; }
+.profile-view { width: 100%; font-family: 'Poppins', sans-serif; padding-bottom: 40px; }
 .cover-photo { height: 160px; background-color: #007B8F; border-radius: 16px; margin: 0 20px; }
 .profile-header { padding: 0 60px; margin-top: -60px; margin-bottom: 30px; }
 .avatar-container { display: inline-block; background: white; border-radius: 50%; padding: 6px; }
@@ -233,7 +324,7 @@ const onFileSelected = (event) => {
 .avatar-wrapper:hover .avatar-overlay { opacity: 1; }
 .avatar-overlay svg { width: 24px; margin-bottom: 4px; }
 .profile-info-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 15px; }
-.user-titles h2 { font-size: 28px; font-weight: 800; color: #1F2937; margin: 0; }
+.user-titles h2 { font-size: 28px; font-weight: 800; color: #1F2937; margin: 0; text-transform: capitalize; }
 .join-date { display: flex; align-items: center; gap: 8px; color: #9CA3AF; font-size: 14px; margin-top: 5px; font-weight: 500; }
 .join-date svg { width: 16px; }
 .edit-btn { background: white; border: 1px solid #E5E7EB; border-radius: 12px; padding: 10px 20px; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -243,6 +334,7 @@ const onFileSelected = (event) => {
 .edit-btn:hover { background: #F9FAFB; transform: translateY(-1px); }
 .save-mode { border-color: #0097B2; background: #F0FBFC; }
 .save-mode .icon, .save-mode .edit-text { color: #0097B2; }
+
 .details-card { background: white; border-radius: 24px; padding: 40px; margin: 0 40px; border: 1px solid #E5E7EB; }
 .card-title { font-size: 18px; font-weight: 800; margin-bottom: 30px; color: #1F2937; }
 .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
@@ -254,4 +346,26 @@ const onFileSelected = (event) => {
 .countries-dropdown { position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #E5E7EB; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; max-height: 150px; overflow-y: auto; list-style: none; padding: 0; margin: 5px 0 0 0; }
 .countries-dropdown li { padding: 10px 15px; font-size: 14px; color: #4B5563; cursor: pointer; transition: background 0.2s; }
 .countries-dropdown li:hover { background: #F0FBFC; color: #0097B2; }
+
+.cv-section { width: 100%; }
+.cv-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; border: 2px dashed #E5E7EB; border-radius: 16px; background-color: #F9FAFB; transition: border-color 0.2s; }
+.cv-empty-state:hover { border-color: #0097B2; }
+.cv-icon-large { width: 48px; height: 48px; color: #9CA3AF; margin-bottom: 15px; }
+.cv-empty-state p { color: #6B7280; font-size: 14px; margin-bottom: 20px; }
+.btn-upload-cv { background-color: #1F2937; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-upload-cv:hover { background-color: #374151; }
+
+.cv-active-state { display: flex; align-items: center; justify-content: space-between; padding: 20px 25px; border: 1px solid #E5E7EB; border-radius: 16px; background-color: #FFFFFF; }
+.cv-document-info { display: flex; align-items: center; gap: 15px; }
+.cv-file-icon { width: 40px; height: 40px; background-color: #F0FBFC; color: #0097B2; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.cv-file-icon svg { width: 24px; height: 24px; }
+.cv-file-details h4 { margin: 0 0 4px 0; color: #1F2937; font-size: 15px; font-weight: 600; }
+.cv-file-details span { color: #10B981; font-size: 12px; font-weight: 500; }
+
+.cv-actions { display: flex; align-items: center; gap: 10px; }
+.btn-view-cv { background-color: #0097B2; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.btn-view-cv:hover { background-color: #007A8F; }
+.btn-remove-cv { background-color: #FEE2E2; color: #EF4444; border: none; padding: 8px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.btn-remove-cv:hover { background-color: #FECACA; }
+.btn-remove-cv svg { width: 18px; height: 18px; }
 </style>

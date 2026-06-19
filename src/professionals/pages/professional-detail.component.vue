@@ -22,7 +22,7 @@
               <label>Rating</label>
             </div>
             <div class="stat">
-              <span class="stat-value">4 años</span>
+              <span class="stat-value">{{ expert.experienceYears }} años</span>
               <label>Experiencia</label>
             </div>
           </div>
@@ -40,8 +40,37 @@
 
       <section class="content-area">
         <div class="card info-card">
-          <h2 class="section-title">Sobre el experto</h2>
+          <div class="info-header">
+            <h2 class="section-title">Sobre el experto</h2>
+            <button class="btn-download-cv" @click="downloadCV">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Ver CV PDF
+            </button>
+          </div>
           <p class="description-text">{{ expert.about }}</p>
+
+          <div class="extra-details-grid">
+            <div class="detail-item">
+              <strong>Edad</strong>
+              <span>{{ expert.age }} años</span>
+            </div>
+            <div class="detail-item">
+              <strong>Especialidad</strong>
+              <span style="text-transform: capitalize;">{{ expert.specialty || expert.occupation || 'Asesor' }}</span>
+            </div>
+            <div class="detail-item">
+              <strong>Experiencia</strong>
+              <span>{{ expert.experienceYears }} años comprobados</span>
+            </div>
+            <div class="detail-item">
+              <strong>Idiomas</strong>
+              <span>{{ expert.languages.join(', ') }}</span>
+            </div>
+          </div>
         </div>
 
         <div class="card cv-card">
@@ -134,7 +163,7 @@
         <div class="modal-footer payment-simulation-footer" v-else>
           <p class="simulation-text">Se abrió la pestaña de PayPal. Vuelve aquí para simular que el pago fue exitoso.</p>
           <button class="btn-modal-confirm simulate-btn" @click="processSimulatedPayment" :disabled="isSimulating">
-            {{ isSimulating ? 'Guardando reserva...' : 'Simular Pago Exitoso' }}
+            {{ isSimulating ? 'Guardando reserva...' : 'Pagar' }}
           </button>
           <button class="btn-text-cancel" @click="closeModal" :disabled="isSimulating">Cancelar operación</button>
         </div>
@@ -171,12 +200,7 @@ const isSimulating = ref(false);
 
 const femaleNames = [
   'mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo', 'carmen', 'natalia', 'valeria', 'elena',
-  'laura', 'marta', 'andrea', 'alba', 'paula', 'julia', 'claudia', 'sara', 'irene', 'patricia',
-  'silvia', 'rosa', 'teresa', 'beatriz', 'nuria', 'raquel', 'marina', 'angela', 'diana', 'victoria',
-  'eva', 'lorena', 'monica', 'isabel', 'gloria', 'rocio', 'alicia', 'cristina', 'alejandra', 'gabriela',
-  'daniela', 'valentina', 'camila', 'martina', 'emilia', 'catalina', 'isabella', 'antonella', 'luna', 'zoe',
-  'alma', 'olivia', 'emma', 'abigail', 'amanda', 'blanca', 'carla', 'celia', 'clara', 'elisa',
-  'esperanza', 'estela', 'ester', 'fatima', 'flora', 'ines', 'judith', 'lidia', 'lourdes', 'margarita'
+  'laura', 'marta', 'andrea', 'alba', 'paula', 'julia', 'claudia', 'sara', 'irene', 'patricia'
 ];
 
 const expertPhoto = computed(() => {
@@ -186,14 +210,30 @@ const expertPhoto = computed(() => {
 });
 
 const generarCVDinamico = (data) => {
-  const esp = (data.specialty || data.occupation || 'Administración').toLowerCase();
+  const name = data.name || data.firstName || 'Especialista';
+  const esp = (data.specialty || data.occupation || 'Asesoría').toLowerCase();
+
+  const seed = parseInt(data.id) || name.length;
+
+  const calcAge = 28 + (seed % 15);
+  const calcExp = Math.max(3, seed % 12);
+
+  const allLanguages = [['Español (Nativo)', 'Inglés (Fluido)'], ['Español (Nativo)', 'Portugués (Intermedio)'], ['Español', 'Inglés', 'Francés'], ['Español (Nativo)', 'Alemán (Básico)']];
+  const selectedLangs = allLanguages[seed % allLanguages.length];
+
   return {
     ...data,
-    name: data.name || data.firstName,
-    about: `¡Hola! Soy ${data.name || data.firstName}, especialista en ${esp}.`,
-    experience: [{ role: `Consultor en ${esp}`, years: '2020 - Presente', desc: 'Asesoría profesional.' }],
-    education: [{ degree: `Bachiller en ${esp}`, years: '2015 - 2019', desc: 'Universidad de Lima.' }],
-    skills: ['Estrategia', 'Análisis', 'Liderazgo']
+    name: name,
+    age: data.age || calcAge,
+    experienceYears: calcExp,
+    languages: data.languages || selectedLangs,
+    about: data.about || `¡Hola! Soy ${name}, especialista en el área de ${esp}. Cuento con ${calcExp} años de experiencia dedicados a brindar consultoría de alto nivel, optimizando procesos y estrategias para garantizar el éxito de mis clientes.`,
+    experience: data.experience || [
+      { role: `Especialista Senior en ${esp}`, years: `20${24 - calcExp} - Presente`, desc: 'Liderazgo de proyectos y consultoría empresarial.' },
+      { role: `Analista de ${esp}`, years: `20${24 - calcExp - 3} - 20${24 - calcExp}`, desc: 'Desarrollo de análisis estratégico y apoyo corporativo.' }
+    ],
+    education: data.education || [{ degree: `Licenciatura relacionada a ${esp}`, years: `20${24 - calcExp - 7} - 20${24 - calcExp - 3}`, desc: 'Estudios de grado superior universitario.' }],
+    skills: data.skills || ['Estrategia', 'Resolución de problemas', 'Liderazgo de equipos', 'Análisis']
   };
 };
 
@@ -205,8 +245,130 @@ const loadExpertAndReviews = async () => {
   } catch (error) {
     expert.value = generarCVDinamico({ id, name: 'Asesor FinTeka', specialty: 'Finanzas', price: 75 });
   }
+
   const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
   expertReviews.value = allReviews.filter(r => r.expertId == id);
+};
+
+const downloadCV = () => {
+  const e = expert.value;
+
+  const cvHTML = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>CV_${e.name.replace(/\s+/g, '_')}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+        body { font-family: 'Poppins', sans-serif; margin: 0; padding: 0; color: #1F2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #F4F7FE; }
+
+        .cv-wrapper { max-width: 850px; margin: 0 auto; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1); min-height: 100vh; }
+
+        .header { background-color: #1F2937; color: white; padding: 40px; text-align: center; border-bottom: 5px solid #0097B2; }
+        .header h1 { margin: 0; font-size: 36px; color: #FFFFFF; letter-spacing: 1px; }
+        .header p { margin: 10px 0 0; font-size: 18px; color: #0097B2; font-weight: 600; text-transform: uppercase; }
+
+        .content { display: flex; }
+
+        .sidebar { width: 35%; background-color: #F9FAFB; padding: 40px 30px; border-right: 1px solid #E5E7EB; }
+        .main-content { width: 65%; padding: 40px 30px; }
+
+        h2 { color: #1F2937; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; margin-bottom: 20px; }
+        .sidebar h2 { margin-top: 30px; font-size: 16px; }
+        .sidebar h2:first-child { margin-top: 0; }
+
+        .info-block { margin-bottom: 20px; }
+        .info-block strong { display: block; font-size: 11px; color: #9CA3AF; text-transform: uppercase; margin-bottom: 4px; }
+        .info-block span { font-size: 14px; font-weight: 600; color: #4B5563; }
+
+        .tag-container { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tag { background: #E0F2FE; color: #0369A1; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+        .about-text { font-size: 13px; line-height: 1.8; color: #4B5563; margin-bottom: 35px; text-align: justify; }
+
+        .timeline-item { margin-bottom: 25px; position: relative; padding-left: 15px; border-left: 2px solid #0097B2; }
+        .timeline-item h4 { margin: 0 0 5px; font-size: 16px; color: #1F2937; }
+        .timeline-date { font-size: 12px; color: #0097B2; font-weight: 700; margin-bottom: 8px; }
+        .timeline-item p { font-size: 13px; color: #4B5563; line-height: 1.6; margin: 0; }
+
+        .footer { text-align: center; padding: 20px; font-size: 11px; color: #9CA3AF; background: #1F2937; color: white; }
+
+        @media print {
+          body { background: white; padding: 0; }
+          .cv-wrapper { box-shadow: none; max-width: 100%; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="cv-wrapper">
+        <div class="header">
+          <h1>${e.name}</h1>
+          <p>${e.specialty || e.occupation || 'Consultoría Especializada'}</p>
+        </div>
+
+        <div class="content">
+          <div class="sidebar">
+            <h2>Datos Personales</h2>
+            <div class="info-block"><strong>Edad</strong><span>${e.age} años</span></div>
+            <div class="info-block"><strong>Ubicación</strong><span>${e.district || 'San Isidro, Lima'}</span></div>
+            <div class="info-block"><strong>Experiencia Total</strong><span>${e.experienceYears} años comprobados</span></div>
+
+            <h2>Idiomas</h2>
+            ${e.languages.map(l => `<div class="info-block"><span>✓ ${l}</span></div>`).join('')}
+
+            <h2>Habilidades Top</h2>
+            <div class="tag-container">
+              ${e.skills.map(s => `<span class="tag">${s}</span>`).join('')}
+            </div>
+          </div>
+
+          <div class="main-content">
+            <h2>Resumen Profesional</h2>
+            <p class="about-text">${e.about}</p>
+
+            <h2>Experiencia Laboral</h2>
+            ${e.experience.map(exp => `
+              <div class="timeline-item">
+                <h4>${exp.role}</h4>
+                <div class="timeline-date">${exp.years}</div>
+                <p>${exp.desc}</p>
+              </div>
+            `).join('')}
+
+            <h2 style="margin-top: 35px;">Formación Académica</h2>
+            ${e.education.map(ed => `
+              <div class="timeline-item">
+                <h4>${ed.degree}</h4>
+                <div class="timeline-date">${ed.years}</div>
+                <p>${ed.desc}</p>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div class="footer">
+          Perfil profesional verificado y exportado desde la plataforma FinTeka.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open('', '_blank');
+
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(cvHTML);
+    printWindow.document.close();
+
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 1000);
+  } else {
+    alert("Tu navegador bloqueó la ventana emergente. Por favor, permite los pop-ups para FinTeka e intenta nuevamente.");
+  }
 };
 
 const openModal = () => {
@@ -228,8 +390,6 @@ const initiatePayment = () => {
 
 const processSimulatedPayment = async () => {
   isSimulating.value = true;
-
-  // 1. Intentamos guardar en la base de datos (si falla, lo ignoramos para que la app no se rompa)
   try {
     const savedProfile = JSON.parse(localStorage.getItem('finteka_user_profile') || '{}');
     const profileId = savedProfile.id || 1;
@@ -239,39 +399,35 @@ const processSimulatedPayment = async () => {
       profileId: profileId,
       status: 'CONFIRMED'
     });
+    const nuevaReserva = {
+      id: Date.now(),
+      expertName: expert.value.name,
+      specialty: expert.value.specialty || expert.value.occupation || 'Especialista',
+      date: bookingDate.value,
+      time: bookingTime.value,
+      status: 'Confirmada',
+      paid: expert.value.price || 75
+    };
+    const reservas = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
+    reservas.unshift(nuevaReserva);
+    localStorage.setItem('finteka_reservas', JSON.stringify(reservas));
+    const notifs = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
+    notifs.unshift({
+      id: Date.now(),
+      type: 'Cita',
+      text: `¡Reserva confirmada! Tienes una asesoría en ${nuevaReserva.specialty} con ${nuevaReserva.expertName}.`,
+      date: 'Justo ahora',
+      read: false
+    });
+    localStorage.setItem('finteka_notificaciones', JSON.stringify(notifs));
+    alert(`Pago simulado exitosamente. Tu cita con ${expert.value.name} está confirmada.`);
+    closeModal();
+    router.push('/reservas');
   } catch (e) {
-    console.error('Error guardando en BD, pero simularemos el éxito localmente.');
+    alert('Hubo un error de conexión al guardar la cita en la base de datos.');
+  } finally {
+    isSimulating.value = false;
   }
-
-  // 2. Guardamos la reserva localmente para que aparezca en "Mis Reservas"
-  const nuevaReserva = {
-    id: Date.now(),
-    expertName: expert.value.name,
-    specialty: expert.value.specialty || expert.value.occupation || 'Especialista',
-    date: bookingDate.value,
-    time: bookingTime.value,
-    status: 'Confirmada',
-    paid: expert.value.price || 75
-  };
-  const reservas = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
-  reservas.unshift(nuevaReserva);
-  localStorage.setItem('finteka_reservas', JSON.stringify(reservas));
-
-  // 3. GENERAMOS LA NOTIFICACIÓN PARA LA VENTANITA
-  const notifs = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
-  notifs.unshift({
-    id: Date.now(),
-    type: 'Cita',
-    text: `¡Reserva confirmada! Tienes una asesoría en ${nuevaReserva.specialty} con ${nuevaReserva.expertName}.`,
-    date: 'Justo ahora',
-    read: false
-  });
-  localStorage.setItem('finteka_notificaciones', JSON.stringify(notifs));
-
-  alert(`Pago simulado exitosamente. Tu cita con ${expert.value.name} está confirmada.`);
-  isSimulating.value = false;
-  closeModal();
-  router.push('/reservas');
 };
 
 const enviarReview = async () => {
@@ -279,14 +435,12 @@ const enviarReview = async () => {
   try {
     await http.post('/api/ratings', { professionalId: expert.value.id, score: rating.value, comment: comment.value });
   } catch (error) {}
-
   const nuevaReview = {
     expertId: expert.value.id, rating: rating.value, text: comment.value, date: new Date().toLocaleDateString()
   };
   const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
   allReviews.unshift(nuevaReview);
   localStorage.setItem('finteka_reviews', JSON.stringify(allReviews));
-
   rating.value = 0;
   comment.value = '';
   loadExpertAndReviews();
@@ -303,6 +457,15 @@ watch(() => route.params.id, loadExpertAndReviews);
 .btn-back { display: flex; align-items: center; gap: 8px; background: none; border: none; color: #4B5563; font-weight: 600; cursor: pointer; margin-bottom: 30px; }
 .main-layout { display: grid; grid-template-columns: 320px 1fr; gap: 30px; align-items: start; }
 .card { background: white; border-radius: 16px; border: 1px solid #E5E7EB; padding: 25px; margin-bottom: 25px; }
+
+.info-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.btn-download-cv { background: #F3F4F6; color: #4B5563; border: 1px solid #E5E7EB; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+.btn-download-cv:hover { background: #E5E7EB; color: #1F2937; }
+.extra-details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; padding-top: 20px; border-top: 1px solid #F3F4F6; }
+.detail-item { font-size: 13px; color: #4B5563; display: flex; flex-direction: column; gap: 4px; }
+.detail-item strong { color: #9CA3AF; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+.detail-item span { color: #1F2937; font-weight: 600; }
+
 .profile-main-card { text-align: center; }
 .expert-img-container { width: 100px; height: 100px; margin: 0 auto 15px; border-radius: 50%; border: 2px solid #E5E7EB; overflow: hidden; }
 .expert-img { width: 100%; height: 100%; object-fit: cover; }
@@ -319,7 +482,7 @@ watch(() => route.params.id, loadExpertAndReviews);
 .status-badge { font-size: 13px; margin: 10px 0 20px; display: flex; align-items: center; gap: 6px; }
 .dot { width: 8px; height: 8px; background: #4ADE80; border-radius: 50%; }
 .btn-reserve { width: 100%; padding: 12px; border-radius: 10px; border: none; background: white; color: #0097B2; font-weight: 700; cursor: pointer; }
-.section-title { font-size: 18px; font-weight: 700; color: #1F2937; margin-bottom: 15px; }
+.section-title { font-size: 18px; font-weight: 700; color: #1F2937; margin: 0; }
 .description-text { color: #4B5563; line-height: 1.6; font-size: 14px; }
 .rating-picker { font-size: 32px; color: #E5E7EB; margin-bottom: 20px; }
 .star { cursor: pointer; margin-right: 5px; }
@@ -345,9 +508,7 @@ watch(() => route.params.id, loadExpertAndReviews);
 .modal-input:disabled { background: #F3F4F6; color: #9CA3AF; cursor: not-allowed; }
 .modal-footer { display: flex; gap: 12px; }
 .btn-modal-cancel { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid #E5E7EB; cursor: pointer; }
-.btn-modal-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-modal-confirm { flex: 1; padding: 12px; border-radius: 10px; background: #0097B2; color: white; font-weight: 700; border: none; cursor: pointer; transition: 0.2s; }
-.btn-modal-confirm:disabled { background: #6B7280; cursor: wait; }
 .payment-simulation-footer { display: flex; flex-direction: column; text-align: center; gap: 12px; }
 .simulation-text { font-size: 13px; color: #4B5563; margin: 0; font-weight: 500; }
 .simulate-btn { width: 100%; padding: 12px; border-radius: 10px; background: #10B981; color: white; font-weight: 700; border: none; cursor: pointer; transition: 0.2s; }

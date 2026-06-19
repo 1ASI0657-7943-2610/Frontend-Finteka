@@ -246,8 +246,18 @@ const loadExpertAndReviews = async () => {
     expert.value = generarCVDinamico({ id, name: 'Asesor FinTeka', specialty: 'Finanzas', price: 75 });
   }
 
-  const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
-  expertReviews.value = allReviews.filter(r => r.expertId == id);
+  try {
+    const reviewsResponse = await http.get(`/api/ratings/professional/${id}`);
+    expertReviews.value = reviewsResponse.data.map(r => ({
+      rating: r.rating || 5,
+      text: r.comment || '',
+      date: new Date().toLocaleDateString()
+    }));
+  } catch (error) {
+    console.error("Error trayendo reseñas del backend", error);
+    const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
+    expertReviews.value = allReviews.filter(r => r.expertId == id);
+  }
 };
 
 const downloadCV = () => {
@@ -261,111 +271,61 @@ const downloadCV = () => {
       <title>CV_${e.name.replace(/\s+/g, '_')}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
-
         body { font-family: 'Poppins', sans-serif; margin: 0; padding: 0; color: #1F2937; -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #F4F7FE; }
-
         .cv-wrapper { max-width: 850px; margin: 0 auto; background: white; box-shadow: 0 10px 30px rgba(0,0,0,0.1); min-height: 100vh; }
-
         .header { background-color: #1F2937; color: white; padding: 40px; text-align: center; border-bottom: 5px solid #0097B2; }
         .header h1 { margin: 0; font-size: 36px; color: #FFFFFF; letter-spacing: 1px; }
         .header p { margin: 10px 0 0; font-size: 18px; color: #0097B2; font-weight: 600; text-transform: uppercase; }
-
         .content { display: flex; }
-
         .sidebar { width: 35%; background-color: #F9FAFB; padding: 40px 30px; border-right: 1px solid #E5E7EB; }
         .main-content { width: 65%; padding: 40px 30px; }
-
         h2 { color: #1F2937; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; margin-top: 0; margin-bottom: 20px; }
         .sidebar h2 { margin-top: 30px; font-size: 16px; }
         .sidebar h2:first-child { margin-top: 0; }
-
         .info-block { margin-bottom: 20px; }
         .info-block strong { display: block; font-size: 11px; color: #9CA3AF; text-transform: uppercase; margin-bottom: 4px; }
         .info-block span { font-size: 14px; font-weight: 600; color: #4B5563; }
-
         .tag-container { display: flex; flex-wrap: wrap; gap: 8px; }
         .tag { background: #E0F2FE; color: #0369A1; padding: 6px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-
         .about-text { font-size: 13px; line-height: 1.8; color: #4B5563; margin-bottom: 35px; text-align: justify; }
-
         .timeline-item { margin-bottom: 25px; position: relative; padding-left: 15px; border-left: 2px solid #0097B2; }
         .timeline-item h4 { margin: 0 0 5px; font-size: 16px; color: #1F2937; }
         .timeline-date { font-size: 12px; color: #0097B2; font-weight: 700; margin-bottom: 8px; }
         .timeline-item p { font-size: 13px; color: #4B5563; line-height: 1.6; margin: 0; }
-
         .footer { text-align: center; padding: 20px; font-size: 11px; color: #9CA3AF; background: #1F2937; color: white; }
-
-        @media print {
-          body { background: white; padding: 0; }
-          .cv-wrapper { box-shadow: none; max-width: 100%; }
-        }
+        @media print { body { background: white; padding: 0; } .cv-wrapper { box-shadow: none; max-width: 100%; } }
       </style>
     </head>
     <body>
       <div class="cv-wrapper">
-        <div class="header">
-          <h1>${e.name}</h1>
-          <p>${e.specialty || e.occupation || 'Consultoría Especializada'}</p>
-        </div>
-
+        <div class="header"><h1>${e.name}</h1><p>${e.specialty || e.occupation || 'Consultoría Especializada'}</p></div>
         <div class="content">
           <div class="sidebar">
             <h2>Datos Personales</h2>
             <div class="info-block"><strong>Edad</strong><span>${e.age} años</span></div>
             <div class="info-block"><strong>Ubicación</strong><span>${e.district || 'San Isidro, Lima'}</span></div>
             <div class="info-block"><strong>Experiencia Total</strong><span>${e.experienceYears} años comprobados</span></div>
-
-            <h2>Idiomas</h2>
-            ${e.languages.map(l => `<div class="info-block"><span>✓ ${l}</span></div>`).join('')}
-
-            <h2>Habilidades Top</h2>
-            <div class="tag-container">
-              ${e.skills.map(s => `<span class="tag">${s}</span>`).join('')}
-            </div>
+            <h2>Idiomas</h2>${e.languages.map(l => `<div class="info-block"><span>✓ ${l}</span></div>`).join('')}
+            <h2>Habilidades Top</h2><div class="tag-container">${e.skills.map(s => `<span class="tag">${s}</span>`).join('')}</div>
           </div>
-
           <div class="main-content">
-            <h2>Resumen Profesional</h2>
-            <p class="about-text">${e.about}</p>
-
-            <h2>Experiencia Laboral</h2>
-            ${e.experience.map(exp => `
-              <div class="timeline-item">
-                <h4>${exp.role}</h4>
-                <div class="timeline-date">${exp.years}</div>
-                <p>${exp.desc}</p>
-              </div>
-            `).join('')}
-
-            <h2 style="margin-top: 35px;">Formación Académica</h2>
-            ${e.education.map(ed => `
-              <div class="timeline-item">
-                <h4>${ed.degree}</h4>
-                <div class="timeline-date">${ed.years}</div>
-                <p>${ed.desc}</p>
-              </div>
-            `).join('')}
+            <h2>Resumen Profesional</h2><p class="about-text">${e.about}</p>
+            <h2>Experiencia Laboral</h2>${e.experience.map(exp => `<div class="timeline-item"><h4>${exp.role}</h4><div class="timeline-date">${exp.years}</div><p>${exp.desc}</p></div>`).join('')}
+            <h2 style="margin-top: 35px;">Formación Académica</h2>${e.education.map(ed => `<div class="timeline-item"><h4>${ed.degree}</h4><div class="timeline-date">${ed.years}</div><p>${ed.desc}</p></div>`).join('')}
           </div>
         </div>
-        <div class="footer">
-          Perfil profesional verificado y exportado desde la plataforma FinTeka.
-        </div>
+        <div class="footer">Perfil profesional verificado y exportado desde la plataforma FinTeka.</div>
       </div>
     </body>
     </html>
   `;
 
   const printWindow = window.open('', '_blank');
-
   if (printWindow) {
     printWindow.document.open();
     printWindow.document.write(cvHTML);
     printWindow.document.close();
-
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 1000);
+    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 1000);
   } else {
     alert("Tu navegador bloqueó la ventana emergente. Por favor, permite los pop-ups para FinTeka e intenta nuevamente.");
   }
@@ -392,25 +352,28 @@ const processSimulatedPayment = async () => {
   isSimulating.value = true;
   try {
     const savedProfile = JSON.parse(localStorage.getItem('finteka_user_profile') || '{}');
-    const profileId = savedProfile.id || 1;
+    const profileId = savedProfile.id || 2;
+
     await http.post('/api/reservations', {
-      startTime: `${bookingDate.value}T${bookingTime.value}:00`,
       professionalId: expert.value.id,
       profileId: profileId,
-      status: 'CONFIRMED'
+      timeSlot: `${bookingDate.value}T${bookingTime.value}:00`
     });
+
     const nuevaReserva = {
       id: Date.now(),
       expertName: expert.value.name,
       specialty: expert.value.specialty || expert.value.occupation || 'Especialista',
       date: bookingDate.value,
       time: bookingTime.value,
-      status: 'Confirmada',
+      status: 'ACTIVE',
       paid: expert.value.price || 75
     };
+
     const reservas = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
     reservas.unshift(nuevaReserva);
     localStorage.setItem('finteka_reservas', JSON.stringify(reservas));
+
     const notifs = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
     notifs.unshift({
       id: Date.now(),
@@ -420,10 +383,12 @@ const processSimulatedPayment = async () => {
       read: false
     });
     localStorage.setItem('finteka_notificaciones', JSON.stringify(notifs));
-    alert(`Pago simulado exitosamente. Tu cita con ${expert.value.name} está confirmada.`);
+
+    alert(`Pago simulado exitosamente. Tu cita con ${expert.value.name} está confirmada y guardada en el servidor.`);
     closeModal();
     router.push('/reservas');
   } catch (e) {
+    console.error(e);
     alert('Hubo un error de conexión al guardar la cita en la base de datos.');
   } finally {
     isSimulating.value = false;
@@ -432,19 +397,24 @@ const processSimulatedPayment = async () => {
 
 const enviarReview = async () => {
   if (rating.value === 0 || !comment.value) return alert('Completa la reseña.');
+  const savedProfile = JSON.parse(localStorage.getItem('finteka_user_profile') || '{}');
+  const profileId = savedProfile.id || 2;
+
   try {
-    await http.post('/api/ratings', { professionalId: expert.value.id, score: rating.value, comment: comment.value });
-  } catch (error) {}
-  const nuevaReview = {
-    expertId: expert.value.id, rating: rating.value, text: comment.value, date: new Date().toLocaleDateString()
-  };
-  const allReviews = JSON.parse(localStorage.getItem('finteka_reviews') || '[]');
-  allReviews.unshift(nuevaReview);
-  localStorage.setItem('finteka_reviews', JSON.stringify(allReviews));
-  rating.value = 0;
-  comment.value = '';
-  loadExpertAndReviews();
-  alert('¡Reseña publicada!');
+    await http.post('/api/ratings', {
+      professionalId: expert.value.id,
+      profileId: profileId,
+      rating: rating.value,
+      comment: comment.value
+    });
+    alert('¡Reseña publicada exitosamente en la base de datos!');
+    rating.value = 0;
+    comment.value = '';
+    await loadExpertAndReviews();
+  } catch (error) {
+    console.error(error);
+    alert('Hubo un error al enviar la reseña al servidor.');
+  }
 };
 
 onMounted(loadExpertAndReviews);
@@ -457,7 +427,6 @@ watch(() => route.params.id, loadExpertAndReviews);
 .btn-back { display: flex; align-items: center; gap: 8px; background: none; border: none; color: #4B5563; font-weight: 600; cursor: pointer; margin-bottom: 30px; }
 .main-layout { display: grid; grid-template-columns: 320px 1fr; gap: 30px; align-items: start; }
 .card { background: white; border-radius: 16px; border: 1px solid #E5E7EB; padding: 25px; margin-bottom: 25px; }
-
 .info-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .btn-download-cv { background: #F3F4F6; color: #4B5563; border: 1px solid #E5E7EB; padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
 .btn-download-cv:hover { background: #E5E7EB; color: #1F2937; }
@@ -465,7 +434,6 @@ watch(() => route.params.id, loadExpertAndReviews);
 .detail-item { font-size: 13px; color: #4B5563; display: flex; flex-direction: column; gap: 4px; }
 .detail-item strong { color: #9CA3AF; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
 .detail-item span { color: #1F2937; font-weight: 600; }
-
 .profile-main-card { text-align: center; }
 .expert-img-container { width: 100px; height: 100px; margin: 0 auto 15px; border-radius: 50%; border: 2px solid #E5E7EB; overflow: hidden; }
 .expert-img { width: 100%; height: 100%; object-fit: cover; }

@@ -1,19 +1,19 @@
 <template>
   <div class="layout-container">
-    <!-- Menú lateral izquierdo fijo. Escuchamos el evento toggle-notifs -->
     <Sidebar @toggle-notifs="showNotifs = !showNotifs" />
 
-    <!-- Contenedor derecho (Barra superior + Contenido dinámico) -->
     <div class="main-content">
       <Topbar />
 
-      <!-- Aquí Vue inyectará el Dashboard, Profesionales, etc. -->
-      <main class="page-content">
-        <!-- PANEL FLOTANTE DE NOTIFICACIONES -->
-        <NotificationsPanel v-if="showNotifs" />
+      <div class="content-wrapper">
 
-        <router-view></router-view>
-      </main>
+        <NotificationsPanel v-if="showNotifs" class="floating-notifs" />
+
+        <main class="page-content">
+          <router-view></router-view>
+        </main>
+
+      </div>
     </div>
   </div>
 </template>
@@ -24,7 +24,6 @@ import Sidebar from '../shared/components/sidebar.component.vue';
 import Topbar from '../shared/components/topbar.component.vue';
 import NotificationsPanel from '../notifications/components/notifications-panel.component.vue';
 
-// Variable reactiva para mostrar/ocultar el panel
 const showNotifs = ref(false);
 </script>
 
@@ -38,10 +37,25 @@ const showNotifs = ref(false);
   display: flex;
   flex-direction: column;
 }
+.content-wrapper {
+  flex-grow: 1;
+  position: relative; /* Todo lo absoluto dentro de aquí tomará esto como límite */
+  display: flex;
+}
 .page-content {
   padding: 2rem;
   flex-grow: 1;
-  background-color: #F4F7FE; /* Color exacto de Figma */
-  position: relative; /* CRUCIAL: Para que el panel flotante se posicione respecto a esta caja */
+  background-color: #F4F7FE;
+  width: 100%;
+}
+
+/* LA CLAVE PARA QUE QUEDE PEgado AL BORDE IZQUIERDO */
+.floating-notifs {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 100; /* Asegura que tape el dashboard */
+  box-shadow: 4px 0 15px rgba(0,0,0,0.05); /* Sombra elegante */
 }
 </style>

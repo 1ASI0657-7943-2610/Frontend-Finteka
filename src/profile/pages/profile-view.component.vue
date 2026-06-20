@@ -67,7 +67,7 @@
                   v-model="profileData.address"
                   type="text"
                   class="edit-input"
-                  placeholder="Escribe tu país..."
+                  placeholder="Escribe tu país o distrito..."
                   @input="showCountries = true"
               />
               <ul v-if="showCountries && filteredCountries.length" class="countries-dropdown">
@@ -90,7 +90,6 @@
       </div>
     </div>
 
-    <!-- TARJETA: GESTIÓN DE CV -->
     <div class="details-card" style="margin-top: 25px;">
       <h3 class="card-title">Mi Currículum Profesional</h3>
       <div class="cv-section">
@@ -99,7 +98,7 @@
           <div class="cv-icon-large">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
           </div>
-          <p>Sube tu CV para que los clientes puedan conocer tu trayectoria.</p>
+          <p>Sube tu CV para que los clientes puedan conocer tu trayectoria. (Sin límite de tamaño)</p>
           <button class="btn-upload-cv" @click="triggerCVUpload">Adjuntar Currículum</button>
           <input type="file" ref="cvInput" accept=".pdf,.doc,.docx" style="display: none;" @change="onCVSelected" />
         </div>
@@ -142,7 +141,7 @@ const profileData = reactive({
   email: '',
   address: 'Lima, Perú',
   phone: '',
-  avatar: null,
+  avatar: '/user-avatar.png',
   cvUploaded: false,
   cvFileName: '',
   cvFileData: ''
@@ -151,7 +150,8 @@ const profileData = reactive({
 const countries = [
   'Argentina', 'Bolivia', 'Brasil', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Ecuador',
   'El Salvador', 'España', 'Estados Unidos', 'Guatemala', 'Honduras', 'México', 'Nicaragua',
-  'Panamá', 'Paraguay', 'Perú', 'Puerto Rico', 'República Dominicana', 'Uruguay', 'Venezuela'
+  'Panamá', 'Paraguay', 'Perú', 'Puerto Rico', 'República Dominicana', 'Uruguay', 'Venezuela',
+  'San Isidro', 'Miraflores', 'Surco', 'Lima'
 ];
 
 const filteredCountries = computed(() => {
@@ -166,48 +166,6 @@ const selectCountry = (country) => {
   showCountries.value = false;
 };
 
-onMounted(async () => {
-  const saved = localStorage.getItem('finteka_user_profile');
-  if (saved) {
-    const parsed = JSON.parse(saved);
-    Object.assign(profileData, parsed);
-    profileId.value = parsed.id || null;
-  }
-
-  // 1. Cargamos desde el API
-  try {
-    const response = await http.get('/api/profiles');
-    const profiles = response.data || [];
-    const match = profiles.find(p => p.email === profileData.email);
-    if (match) {
-      profileId.value = match.id;
-      profileData.name = match.name || match.firstName || profileData.name;
-      profileData.email = match.email || profileData.email;
-      profileData.phone = match.phone || profileData.phone;
-      profileData.address = match.district || match.address || profileData.address;
-
-      localStorage.setItem('finteka_user_profile', JSON.stringify({
-        ...JSON.parse(saved || '{}'),
-        ...profileData,
-        id: match.id
-      }));
-    }
-  } catch (error) {
-    console.error('Error cargando perfil desde API:', error);
-  }
-
-  // 2. RECUPERAMOS EL CV DESDE LA BASE DE DATOS SIMULADA
-  const cvsDb = JSON.parse(localStorage.getItem('finteka_cvs_db') || '{}');
-  const userEmail = profileData.email || 'default';
-
-  // Si encontramos un CV guardado para este correo específico, lo restauramos
-  if (cvsDb[userEmail]) {
-    profileData.cvUploaded = cvsDb[userEmail].cvUploaded;
-    profileData.cvFileName = cvsDb[userEmail].cvFileName;
-    profileData.cvFileData = cvsDb[userEmail].cvFileData;
-  }
-});
-
 const sendNotification = (message) => {
   const actualesNotif = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
   actualesNotif.unshift({
@@ -220,26 +178,113 @@ const sendNotification = (message) => {
   localStorage.setItem('finteka_notificaciones', JSON.stringify(actualesNotif));
 };
 
+// ==========================================
+// 🚀 MOTOR SIN LÍMITES (IndexedDB)
+// ==========================================
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('FintekaDataVault', 1);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('userFiles')) {
+        db.createObjectStore('userFiles');
+      }
+    };
+    request.onsuccess = (event) => resolve(event.target.result);
+    request.onerror = (event) => reject(event.target.error);
+  });
+};
+
+const saveToDB = async (key, data) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('userFiles', 'readwrite');
+    tx.objectStore('userFiles').put(data, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+};
+
+const getFromDB = async (key) => {
+  const db = await initDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('userFiles', 'readonly');
+    const request = tx.objectStore('userFiles').get(key);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+};
+// ==========================================
+
+onMounted(async () => {
+  const savedProfileId = localStorage.getItem('profileId');
+  profileId.value = savedProfileId ? parseInt(savedProfileId) : null;
+  const userKey = profileId.value ? String(profileId.value) : 'default';
+
+  try {
+    const vaultData = await getFromDB(userKey);
+    if (vaultData) {
+      if (vaultData.cvUploaded) {
+        profileData.cvUploaded = vaultData.cvUploaded;
+        profileData.cvFileName = vaultData.cvFileName;
+        profileData.cvFileData = vaultData.cvFileData;
+      }
+      if (vaultData.avatar && vaultData.avatar.length > 100) {
+        profileData.avatar = vaultData.avatar;
+      }
+    }
+  } catch (error) {
+    console.error("Bóveda no encontrada", error);
+  }
+
+  if (profileId.value) {
+    try {
+      const response = await http.get('/api/profiles');
+      const match = response.data.find(p => p.id === profileId.value);
+
+      if (match) {
+        profileData.name = match.name || match.firstName || 'Usuario';
+        profileData.email = match.email || '';
+        profileData.phone = match.phone || '';
+        profileData.address = match.district || match.address || 'Lima, Perú';
+      }
+    } catch (error) {
+      console.error('Error cargando Azure');
+    }
+  }
+
+  localStorage.setItem('finteka_user_profile', JSON.stringify({
+    ...profileData, id: profileId.value
+  }));
+  window.dispatchEvent(new Event('profile-updated'));
+});
+
 const toggleEdit = async () => {
   if (isEditing.value) {
-    const updatedProfile = { ...profileData, id: profileId.value };
-    localStorage.setItem('finteka_user_profile', JSON.stringify(updatedProfile));
-    window.dispatchEvent(new Event('profile-updated'));
-
     if (profileId.value) {
       try {
+        const savedPassword = localStorage.getItem('temp_clear_password') || '';
+
         await http.put(`/api/profiles/${profileId.value}`, {
           name: profileData.name,
           email: profileData.email,
           phone: profileData.phone,
-          district: profileData.address
+          district: profileData.address,
+          profilePhoto: "Protegido-por-IndexedDB",
+          password: savedPassword
         });
-        sendNotification('¡Perfil actualizado! Tus datos se sincronizaron con el servidor.');
+
+        // Sincronizamos primero de forma segura antes de emitir el evento
+        localStorage.setItem('finteka_user_profile', JSON.stringify({
+          ...profileData, id: profileId.value
+        }));
+        window.dispatchEvent(new Event('profile-updated'));
+
+        sendNotification('¡Perfil actualizado! Tus datos se sincronizaron con Azure.');
       } catch (error) {
-        sendNotification('¡Perfil guardado localmente! No se pudo sincronizar con el servidor.');
+        console.error('Error al hacer PUT a Azure:', error);
+        sendNotification('Perfil guardado localmente (Fallo al sincronizar).');
       }
-    } else {
-      sendNotification('¡Perfil actualizado! Tus datos personales se han guardado correctamente.');
     }
     showCountries.value = false;
   }
@@ -248,15 +293,30 @@ const toggleEdit = async () => {
 
 const triggerFileInput = () => fileInput.value.click();
 
-const onFileSelected = (event) => {
+const onFileSelected = async (event) => {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      profileData.avatar = e.target.result;
-      localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
-      window.dispatchEvent(new Event('profile-updated'));
-      sendNotification('¡Foto actualizada! Tu avatar se ha cambiado con éxito.');
+    reader.onload = async (e) => {
+      const base64Image = e.target.result;
+      profileData.avatar = base64Image;
+
+      const userKey = profileId.value ? String(profileId.value) : 'default';
+      try {
+        const existingData = await getFromDB(userKey).catch(() => null) || {};
+        existingData.avatar = base64Image;
+
+        // 🔑 SOLUCIÓN: Esperamos que termine de escribir en la Base de Datos antes de avisar a la Topbar
+        await saveToDB(userKey, existingData);
+
+        // Una vez completado el guardado en la bóveda, guardamos en local y disparamos el evento
+        localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData, id: profileId.value }));
+        window.dispatchEvent(new Event('profile-updated'));
+
+        sendNotification('¡Foto guardada exitosamente!');
+      } catch (err) {
+        console.error("Error guardando la foto:", err);
+      }
     };
     reader.readAsDataURL(file);
   }
@@ -268,43 +328,52 @@ const onCVSelected = (event) => {
   const file = event.target.files[0];
   if (file) {
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       profileData.cvUploaded = true;
       profileData.cvFileName = file.name;
       profileData.cvFileData = e.target.result;
 
-      localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
+      const userKey = profileId.value ? String(profileId.value) : 'default';
+      try {
+        const existingData = await getFromDB(userKey).catch(() => null) || {};
+        existingData.cvUploaded = true;
+        existingData.cvFileName = file.name;
+        existingData.cvFileData = e.target.result;
 
-      // GUARDAMOS EL CV VINCULADO EXCLUSIVAMENTE AL CORREO DEL USUARIO
-      const cvsDb = JSON.parse(localStorage.getItem('finteka_cvs_db') || '{}');
-      const userEmail = profileData.email || 'default';
+        // 🔑 Esperamos que se complete el guardado del documento
+        await saveToDB(userKey, existingData);
 
-      cvsDb[userEmail] = {
-        cvUploaded: true,
-        cvFileName: file.name,
-        cvFileData: e.target.result
-      };
+        localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData, id: profileId.value }));
+        window.dispatchEvent(new Event('profile-updated'));
 
-      localStorage.setItem('finteka_cvs_db', JSON.stringify(cvsDb));
-      sendNotification('¡CV subido! Tu currículum se adjuntó correctamente y no se perderá.');
+        sendNotification('¡CV subido exitosamente!');
+      } catch (err) {
+        console.error("Fallo al escribir en IndexedDB:", err);
+      }
     };
     reader.readAsDataURL(file);
   }
 };
 
-const removeCV = () => {
+const removeCV = async () => {
   profileData.cvUploaded = false;
   profileData.cvFileName = '';
   profileData.cvFileData = '';
-  localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData }));
 
-  // ELIMINAMOS EL CV TAMBIÉN DE NUESTRA BASE DE DATOS SIMULADA
-  const cvsDb = JSON.parse(localStorage.getItem('finteka_cvs_db') || '{}');
-  const userEmail = profileData.email || 'default';
+  const userKey = profileId.value ? String(profileId.value) : 'default';
+  try {
+    const existingData = await getFromDB(userKey).catch(() => null);
+    if (existingData) {
+      existingData.cvUploaded = false;
+      existingData.cvFileName = '';
+      existingData.cvFileData = '';
+      await saveToDB(userKey, existingData);
+    }
 
-  if (cvsDb[userEmail]) {
-    delete cvsDb[userEmail];
-    localStorage.setItem('finteka_cvs_db', JSON.stringify(cvsDb));
+    localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData, id: profileId.value }));
+    window.dispatchEvent(new Event('profile-updated'));
+  } catch (err) {
+    console.error(err);
   }
 
   sendNotification('CV eliminado de tu perfil.');
@@ -329,11 +398,8 @@ const viewMiCV = () => {
     const url = URL.createObjectURL(blob);
 
     window.open(url, '_blank');
-
   } catch (error) {
     console.error('Error procesando el PDF:', error);
-    const win = window.open();
-    if(win) win.document.write(`<iframe src="${profileData.cvFileData}" style="width:100%; height:100vh; border:none; margin:0; padding:0;"></iframe>`);
   }
 };
 </script>

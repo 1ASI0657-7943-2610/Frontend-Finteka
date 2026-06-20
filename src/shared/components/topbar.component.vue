@@ -16,7 +16,6 @@
           class="search-input"
       />
 
-      <!-- NUEVO: Panel desplegable de sugerencias -->
       <div v-if="isSearchFocused && searchSuggestions.length > 0" class="search-dropdown">
         <div
             v-for="(item, index) in searchSuggestions"
@@ -84,7 +83,6 @@
       </div>
     </div>
 
-    <!-- MODAL DE RECARGA -->
     <div v-if="isPaymentModalOpen" class="modal-overlay" @click.self="isPaymentModalOpen = false">
       <div class="payment-modal">
         <div class="modal-header-payment">
@@ -215,13 +213,38 @@ const processPayment = () => {
   alert("¡Pago aprobado!");
 };
 
-const loadProfileData = () => {
+const loadProfileData = async () => {
+  const profileId = localStorage.getItem('profileId');
+  const userKey = profileId ? String(profileId) : 'default';
+
   const savedProfile = localStorage.getItem('finteka_user_profile');
   if (savedProfile) {
     const data = JSON.parse(savedProfile);
     userName.value = data.name || 'Tom Riddle';
     if (data.avatar) userAvatar.value = data.avatar;
   }
+
+  // 🔑 Extraer FOTO REAL desde la Bóveda ilimitada (IndexedDB)
+  try {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('FintekaDataVault', 1);
+      req.onsuccess = event => resolve(event.target.result);
+      req.onerror = event => reject(event.target.error);
+    });
+
+    const tx = db.transaction('userFiles', 'readonly');
+    const store = tx.objectStore('userFiles');
+    const request = store.get(userKey);
+
+    request.onsuccess = () => {
+      if (request.result && request.result.avatar) {
+        userAvatar.value = request.result.avatar; // Actualiza el avatar del Topbar
+      }
+    };
+  } catch (error) {
+    console.warn("Topbar: No se pudo cargar la imagen desde la bóveda", error);
+  }
+
   const savedBalance = localStorage.getItem('finteka_user_balance');
   if (savedBalance === null) {
     localStorage.setItem('finteka_user_balance', '500.00');

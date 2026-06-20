@@ -25,7 +25,7 @@
             <div class="divider"></div>
             <div class="input-field">
               <label>Email</label>
-              <input v-model="email" type="email" placeholder="fideito.1mp@gmail.com" required />
+              <input v-model="email" type="email" placeholder="ejemplo@correo.com" required />
             </div>
           </div>
 
@@ -39,23 +39,8 @@
             </div>
             <div class="divider"></div>
             <div class="input-field">
-              <label>Password</label>
+              <label>Contraseña</label>
               <input v-model="password" type="password" placeholder="****************" required />
-            </div>
-          </div>
-
-          <div class="input-group">
-            <div class="icon-section">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="12" cy="12" r="3" fill="black" stroke="black" stroke-width="2"/>
-                <line x1="3" y1="21" x2="21" y2="3" stroke="black" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <div class="divider"></div>
-            <div class="input-field">
-              <label>Client</label>
-              <input v-model="client" type="password" placeholder="****************" required />
             </div>
           </div>
 
@@ -86,7 +71,6 @@ import http from '../../shared/services/http-common.js';
 const router = useRouter();
 const email = ref('');
 const password = ref('');
-const client = ref('');
 const errorMessage = ref('');
 const isLoading = ref(false);
 
@@ -115,16 +99,17 @@ const handleLogin = async () => {
 
     const res = response.data;
 
-    // ✅ El backend devuelve success:false si las credenciales son incorrectas
     if (!res.success) {
-      errorMessage.value = res.message || 'Credenciales incorrectas.';
+      errorMessage.value = res.message || 'Email o contraseña incorrectos.';
       return;
     }
 
     const id = res.profileId;
     const name = res.name || 'Usuario';
 
-    // ✅ Guarda en todas las claves necesarias
+    // 🔑 AQUÍ ESTÁ EL AJUSTE: Memorizamos la clave para proteger los PUT del perfil
+    localStorage.setItem('temp_clear_password', password.value);
+
     localStorage.setItem('profileId', id);
     localStorage.setItem('name', name);
     localStorage.setItem('user', JSON.stringify(res));
@@ -141,7 +126,7 @@ const handleLogin = async () => {
     router.push('/dashboard');
 
   } catch (error) {
-    console.error('❌ Error en login:', error.response?.status, error.response?.data || error.message);
+    console.error('Error en login:', error.response?.status, error.response?.data || error.message);
     errorMessage.value = 'Error de conexión con el servidor.';
   } finally {
     isLoading.value = false;

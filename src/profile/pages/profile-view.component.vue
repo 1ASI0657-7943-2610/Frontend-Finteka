@@ -183,7 +183,7 @@ const sendNotification = (message) => {
 // ==========================================
 const initDB = () => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('FintekaDataVault', 1);
+    const request = indexedDB.open('FintekaDataVault', 2);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains('userFiles')) {
@@ -274,7 +274,6 @@ const toggleEdit = async () => {
           password: savedPassword
         });
 
-        // Sincronizamos primero de forma segura antes de emitir el evento
         localStorage.setItem('finteka_user_profile', JSON.stringify({
           ...profileData, id: profileId.value
         }));
@@ -298,25 +297,52 @@ const onFileSelected = async (event) => {
   if (file) {
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const base64Image = e.target.result;
-      profileData.avatar = base64Image;
+      const img = new Image();
+      img.src = e.target.result;
 
-      const userKey = profileId.value ? String(profileId.value) : 'default';
-      try {
-        const existingData = await getFromDB(userKey).catch(() => null) || {};
-        existingData.avatar = base64Image;
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
 
-        // 🔑 SOLUCIÓN: Esperamos que termine de escribir en la Base de Datos antes de avisar a la Topbar
-        await saveToDB(userKey, existingData);
+        const MAX_WIDTH = 400;
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
 
-        // Una vez completado el guardado en la bóveda, guardamos en local y disparamos el evento
-        localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData, id: profileId.value }));
-        window.dispatchEvent(new Event('profile-updated'));
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
 
-        sendNotification('¡Foto guardada exitosamente!');
-      } catch (err) {
-        console.error("Error guardando la foto:", err);
-      }
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const base64Optimized = canvas.toDataURL('image/jpeg', 0.7);
+        profileData.avatar = base64Optimized;
+
+        const userKey = profileId.value ? String(profileId.value) : 'default';
+        try {
+          const existingData = await getFromDB(userKey).catch(() => null) || {};
+          existingData.avatar = base64Optimized;
+
+          await saveToDB(userKey, existingData);
+
+          localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData, id: profileId.value }));
+          window.dispatchEvent(new Event('profile-updated'));
+
+          sendNotification('¡Foto guardada exitosamente!');
+        } catch (err) {
+          console.error("Error guardando la foto:", err);
+        }
+      };
     };
     reader.readAsDataURL(file);
   }
@@ -340,7 +366,6 @@ const onCVSelected = (event) => {
         existingData.cvFileName = file.name;
         existingData.cvFileData = e.target.result;
 
-        // 🔑 Esperamos que se complete el guardado del documento
         await saveToDB(userKey, existingData);
 
         localStorage.setItem('finteka_user_profile', JSON.stringify({ ...profileData, id: profileId.value }));

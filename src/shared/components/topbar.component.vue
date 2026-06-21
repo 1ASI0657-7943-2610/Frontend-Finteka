@@ -1,5 +1,16 @@
 <template>
   <header class="topbar">
+    <transition name="toast">
+      <div v-if="notification.show" class="toast-notification logout-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+          <polyline points="16 17 21 12 16 7"></polyline>
+          <line x1="21" y1="12" x2="9" y2="12"></line>
+        </svg>
+        <span>{{ notification.message }}</span>
+      </div>
+    </transition>
+
     <div class="search-container">
       <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"></circle>
@@ -71,7 +82,7 @@
             Mi Perfil
           </div>
           <div class="dropdown-divider"></div>
-          <div class="dropdown-item text-red" @click="navigate('/login')">
+          <div class="dropdown-item text-red" @click="handleLogout">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
               <polyline points="16 17 21 12 16 7"></polyline>
@@ -142,14 +153,13 @@ const userName = ref('Tom Riddle');
 const userAvatar = ref('/user-avatar.png');
 const userBalance = ref(500.00);
 
-// VARIABLES PARA EL BUSCADOR
+const notification = ref({ show: false, message: '' });
+
 const searchKeyword = ref('');
 const isSearchFocused = ref(false);
 
-// Lista de palabras sugeridas (especialidades y nombres)
 const availableSuggestions = ['Finanzas', 'Legal', 'Tecnología', 'Anuncio', 'Sergio', 'Maria', 'Impuestos', 'Inversiones'];
 
-// Filtra las sugerencias en base a lo que escribes
 const searchSuggestions = computed(() => {
   if (!searchKeyword.value) return [];
   const query = searchKeyword.value.toLowerCase();
@@ -161,23 +171,32 @@ const navigate = (path) => {
   router.push(path);
 };
 
-// Se ejecuta al hacer clic en una sugerencia
+const handleLogout = () => {
+  isDropdownOpen.value = false;
+  // Mensaje optimizado con un enfoque estrictamente técnico y profesional
+  notification.value.message = 'Sesión finalizada de forma segura. Desconectando de la plataforma...';
+  notification.value.show = true;
+
+  setTimeout(() => {
+    notification.value.show = false;
+    router.push('/login');
+  }, 2000);
+};
+
 const selectSuggestion = (item) => {
   searchKeyword.value = item;
   handleSearch();
 };
 
 const hideDropdown = () => {
-  // Retardo mínimo para que permita hacer click en la sugerencia antes de cerrarse
   setTimeout(() => { isSearchFocused.value = false; }, 200);
 };
 
-// FUNCIÓN PARA EL BUSCADOR PRINCIPAL
 const handleSearch = () => {
   if (searchKeyword.value.trim() !== '') {
     router.push({ path: '/profesionales', query: { q: searchKeyword.value.trim() } });
     isSearchFocused.value = false;
-    searchKeyword.value = ''; // Limpia el input si quieres (puedes borrar esta línea si prefieres que se quede escrito)
+    searchKeyword.value = '';
   }
 };
 
@@ -224,10 +243,9 @@ const loadProfileData = async () => {
     if (data.avatar) userAvatar.value = data.avatar;
   }
 
-  // 🔑 Extraer FOTO REAL desde la Bóveda ilimitada (IndexedDB)
   try {
     const db = await new Promise((resolve, reject) => {
-      const req = indexedDB.open('FintekaDataVault', 1);
+      const req = indexedDB.open('FintekaDataVault', 2);
       req.onsuccess = event => resolve(event.target.result);
       req.onerror = event => reject(event.target.error);
     });
@@ -238,7 +256,7 @@ const loadProfileData = async () => {
 
     request.onsuccess = () => {
       if (request.result && request.result.avatar) {
-        userAvatar.value = request.result.avatar; // Actualiza el avatar del Topbar
+        userAvatar.value = request.result.avatar;
       }
     };
   } catch (error) {
@@ -267,7 +285,45 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ESTILOS ORIGINALES */
+/* CONFIGURACIÓN DEL TOAST ROJO CORPORATIVO */
+.toast-notification {
+  position: fixed;
+  top: 25px;
+  right: 25px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 10px 25px rgba(220, 38, 38, 0.2);
+}
+.logout-toast {
+  background-color: #DC2626; /* Rojo de alerta formal */
+  color: white;
+}
+.logout-toast svg {
+  width: 20px;
+  height: 20px;
+  color: #FEE2E2; /* Contraste claro para el icono */
+}
+
+/* Animaciones del Toast */
+.toast-enter-active, .toast-leave-active {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+.toast-enter-from {
+  transform: translateY(-30px) scale(0.9);
+  opacity: 0;
+}
+.toast-leave-to {
+  transform: translateX(50px);
+  opacity: 0;
+}
+
+/* ESTILOS ORIGINALES INTACTOS */
 .topbar { height: 80px; background-color: #ffffff; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #E5E7EB; font-family: 'Poppins', sans-serif; }
 .topbar-right { display: flex; align-items: center; gap: 30px; }
 .balance-display { display: flex; align-items: center; gap: 12px; background: #F0FBFC; padding: 8px 16px; border-radius: 12px; border: 1px solid #B2E7EF; }
@@ -296,12 +352,10 @@ onUnmounted(() => {
 .btn-cancel-pay { flex: 1; padding: 12px; border: none; background: #F3F4F6; border-radius: 12px; font-weight: 600; cursor: pointer; }
 .btn-confirm-pay { flex: 2; padding: 12px; border: none; background: #0097B2; color: white; border-radius: 12px; font-weight: 700; cursor: pointer; }
 
-/* NUEVOS ESTILOS PARA EL BUSCADOR Y DESPLEGABLE */
 .search-container { position: relative; display: flex; align-items: center; background-color: #F3F4F6; padding: 10px 20px; border-radius: 20px; width: 400px; }
 .search-input { border: none; background: transparent; outline: none; width: 100%; font-size: 14px; }
 .search-icon { width: 18px; height: 18px; color: #9CA3AF; margin-right: 10px; }
 
-/* El cuadro blanco que aparece abajo */
 .search-dropdown { position: absolute; top: 110%; left: 0; width: 100%; background: white; border: 1px solid #E5E7EB; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); z-index: 150; overflow: hidden; padding: 5px 0; }
 .suggestion-item { padding: 12px 20px; display: flex; align-items: center; gap: 12px; cursor: pointer; font-size: 14px; color: #4B5563; transition: background 0.2s; }
 .suggestion-item:hover { background-color: #F3F4F6; color: #0097B2; }

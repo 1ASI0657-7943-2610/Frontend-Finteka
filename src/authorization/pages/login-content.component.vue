@@ -1,5 +1,16 @@
 <template>
   <div class="login-page">
+
+    <transition name="toast">
+      <div v-if="notification.show" class="toast-notification success-toast">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        <span>{{ notification.message }}</span>
+      </div>
+    </transition>
+
     <div class="form-container">
       <div class="form-content">
         <h1 class="logo">Fin<span>Teka</span></h1>
@@ -74,6 +85,8 @@ const password = ref('');
 const errorMessage = ref('');
 const isLoading = ref(false);
 
+const notification = ref({ show: false, message: '' });
+
 onMounted(() => {
   localStorage.removeItem('auth_token');
   localStorage.removeItem('finteka_user_profile');
@@ -101,15 +114,14 @@ const handleLogin = async () => {
 
     if (!res.success) {
       errorMessage.value = res.message || 'Email o contraseña incorrectos.';
+      isLoading.value = false;
       return;
     }
 
     const id = res.profileId;
     const name = res.name || 'Usuario';
 
-    // 🔑 AQUÍ ESTÁ EL AJUSTE: Memorizamos la clave para proteger los PUT del perfil
     localStorage.setItem('temp_clear_password', password.value);
-
     localStorage.setItem('profileId', id);
     localStorage.setItem('name', name);
     localStorage.setItem('user', JSON.stringify(res));
@@ -123,18 +135,63 @@ const handleLogin = async () => {
     localStorage.setItem('userName', name);
 
     window.dispatchEvent(new Event('profile-updated'));
-    router.push('/dashboard');
+
+    // CAMBIO DE MENSAJE: Redacción técnica, corporativa y formal
+    notification.value.message = 'Autenticación exitosa. Inicializando sesión segura y cargando panel de control...';
+    notification.value.show = true;
+
+    setTimeout(() => {
+      notification.value.show = false;
+      router.push('/dashboard');
+    }, 2000);
 
   } catch (error) {
     console.error('Error en login:', error.response?.status, error.response?.data || error.message);
     errorMessage.value = 'Error de conexión con el servidor.';
-  } finally {
     isLoading.value = false;
   }
 };
 </script>
 
 <style scoped>
+/* ESTILOS DE LA ALERTA VERDE CORPORATIVA */
+.toast-notification {
+  position: fixed;
+  top: 25px;
+  right: 25px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 10px 25px rgba(5, 150, 105, 0.25);
+}
+.success-toast {
+  background-color: #059669; /* Verde formal de éxito operativo */
+  color: white;
+}
+.success-toast svg {
+  width: 20px;
+  height: 20px;
+  color: #D1FAE5; /* Contraste claro formal */
+}
+
+.toast-enter-active, .toast-leave-active {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+.toast-enter-from {
+  transform: translateY(-30px) scale(0.9);
+  opacity: 0;
+}
+.toast-leave-to {
+  transform: translateX(50px);
+  opacity: 0;
+}
+
+/* ESTILOS ORIGINALES INTACTOS */
 .login-page { display: flex; height: 100vh; width: 100vw; font-family: 'Poppins', sans-serif; background-color: #ffffff; overflow: hidden; }
 .form-container { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; }
 .form-content { width: 100%; max-width: 400px; text-align: center; }
@@ -152,6 +209,7 @@ const handleLogin = async () => {
 .input-field label { font-size: 10px; color: #9CA3AF; text-transform: uppercase; font-weight: 700; }
 .input-field input { border: none; outline: none; font-size: 14px; font-weight: 600; color: #000; }
 .btn-submit { width: 100%; padding: 16px; background-color: #0097B2; color: white; border: none; border-radius: 14px; font-weight: 700; font-size: 16px; cursor: pointer; margin-top: 20px; }
+.btn-submit:disabled { opacity: 0.7; cursor: not-allowed; }
 .image-container { flex: 1; background: linear-gradient(180deg, #095a63 0%, #0097B2 100%); display: flex; align-items: center; justify-content: center; }
 .side-image { width: 85%; object-fit: contain; }
 @media (max-width: 900px) { .image-container { display: none; } }

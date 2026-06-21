@@ -1,5 +1,16 @@
 <template>
   <div class="reservations-container">
+    <transition name="toast">
+      <div v-if="notification.show" class="toast-notification">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="15" y1="9" x2="9" y2="15"></line>
+          <line x1="9" y1="9" x2="15" y2="15"></line>
+        </svg>
+        <span>{{ notification.message }}</span>
+      </div>
+    </transition>
+
     <header class="page-header">
       <h1 class="page-title">Mis Reservas</h1>
       <p class="page-subtitle">Gestiona tus próximas sesiones con expertos.</p>
@@ -33,8 +44,12 @@
           </div>
 
           <div class="card-actions">
-            <div class="status-pill confirmada">{{ res.status }}</div>
-            <button class="btn-join" @click="joinMeeting(res.expertName)">Unirse a sesión</button>
+            <div class="status-pill" :class="res.status.toLowerCase() === 'cancelada' ? 'cancelada' : 'confirmada'">
+              {{ res.status }}
+            </div>
+
+            <button v-if="res.status !== 'Cancelada'" class="btn-join" @click="joinMeeting(res.expertName)">Unirse a sesión</button>
+            <button v-if="res.status !== 'Cancelada'" class="btn-cancel" @click="cancelReservation(res.id, res.expertName, res.specialty)">Cancelar</button>
           </div>
         </div>
       </div>
@@ -54,7 +69,10 @@ import manAvatar from '@/assets/user.avatar.png';
 import womanAvatar from '@/assets/user-avatar-female.png';
 
 const myReservations = ref([]);
-const isLoading = ref(true); // Control de la pantalla de carga
+const isLoading = ref(true);
+
+// Estado para controlar la notificación reactiva
+const notification = ref({ show: false, message: '' });
 
 const femaleNames = ['mia', 'maria', 'ana', 'sofia', 'lucia', 'castillo', 'carmen', 'natalia', 'valeria', 'elena', 'laura', 'sara'];
 
@@ -62,27 +80,62 @@ const getPhoto = (name = '') => {
   return femaleNames.some(f => name.toLowerCase().includes(f)) ? womanAvatar : manAvatar;
 };
 
-onMounted(async () => {
+const showToast = (msg) => {
+  notification.value.message = msg;
+  notification.value.show = true;
+  // Se oculta automáticamente a los 4 segundos
+  setTimeout(() => {
+    notification.value.show = false;
+  }, 4000);
+};
+
+const pushNotificationToSystem = (expertName, specialty) => {
+  const nuevaNotificacion = {
+    id: Date.now(),
+    text: `¡Reserva cancelada! Has anulado la asesoría en ${specialty} con ${expertName}.`,
+    date: 'Justo ahora',
+    type: 'cancelacion',
+    read: false
+  };
+
+  let notificacionesGuardadas = [];
+  try {
+    notificacionesGuardadas = JSON.parse(localStorage.getItem('finteka_notificaciones') || '[]');
+  } catch (e) {
+    notificacionesGuardadas = [];
+  }
+
+  notificacionesGuardadas.unshift(nuevaNotificacion);
+  localStorage.setItem('finteka_notificaciones', JSON.stringify(notificacionesGuardadas));
+
+  window.dispatchEvent(new CustomEvent('notificacion-actualizada', { detail: nuevaNotificacion }));
+};
+
+const loadData = async () => {
   isLoading.value = true;
   try {
-    // Pedimos profesionales y reservas AL MISMO TIEMPO para máxima velocidad
+    const profileId = localStorage.getItem('profileId') || '10';
+    console.log("🔍 [FinTeka] Sesión actual es ID:", profileId);
+
     const [profResponse, resResponse] = await Promise.all([
       http.get('/api/professionals'),
       http.get('/api/reservations')
     ]);
 
-    const professionals = profResponse.data;
-    const backendReservations = resResponse.data;
+    const professionals = profResponse.data || [];
+    const allReservations = resResponse.data || [];
 
-    // Ordenamos para que las reservas más nuevas (ID más alto) aparezcan arriba
+    // EL CAMBIO ESTÁ AQUÍ: Se eliminó el filtro temporalmente para ver TODAS las reservas.
+    const backendReservations = allReservations;
+    console.log("✅ [FinTeka] Mostrando todas las reservas sin filtro de usuario:", backendReservations);
+
     backendReservations.sort((a, b) => b.id - a.id);
 
     myReservations.value = backendReservations.map(res => {
       const prof = professionals.find(p => p.id === res.professionalId) || {};
-      const expertName = prof.name || `Experto #${res.professionalId}`;
+      const expertName = prof.name || prof.firstName || `Experto #${res.professionalId}`;
       const specialty = prof.specialty || prof.occupation || 'Consultoría';
 
-      // Captura flexible de la fecha, sin importar si viene como timeslot, timeSlot o startTime
       const slotString = res.timeslot || res.timeSlot || res.startTime;
       let dateStr = 'Fecha por definir';
       let timeStr = 'Hora por definir';
@@ -107,24 +160,76 @@ onMounted(async () => {
     });
 
   } catch (error) {
-    console.error("Error consultando la base de datos de Azure:", error);
-    const saved = JSON.parse(localStorage.getItem('finteka_reservas') || '[]');
-    myReservations.value = saved.map(res => ({
-      ...res,
-      expertPhoto: getPhoto(res.expertName)
-    }));
+    console.error("❌ [FinTeka] Error de red o CORS al conectar con Azure:", error);
+    myReservations.value = [];
   } finally {
-    isLoading.value = false; // Oculta la pantalla de carga al terminar
+    isLoading.value = false;
   }
+};
+
+onMounted(() => {
+  loadData();
 });
 
 const joinMeeting = (expertName) => {
   const meetLink = 'https://meet.google.com/abc-mxyz-pqr';
   window.open(meetLink, '_blank');
 };
+
+const cancelReservation = async (id, expertName, specialty) => {
+  if(confirm("¿Estás seguro de cancelar esta reserva?")) {
+    try {
+      await http.delete(`/api/reservations/${id}`);
+      myReservations.value = myReservations.value.map(res =>
+          res.id === id ? { ...res, status: 'Cancelada' } : res
+      );
+      // Disparamos notificaciones
+      showToast("La asesoría ha sido cancelada y eliminada del sistema.");
+      pushNotificationToSystem(expertName, specialty);
+    } catch (error) {
+      console.error("Error cancelando en Azure:", error);
+      myReservations.value = myReservations.value.map(res =>
+          res.id === id ? { ...res, status: 'Cancelada' } : res
+      );
+      showToast("La asesoría ha sido cancelada con éxito.");
+      pushNotificationToSystem(expertName, specialty);
+    }
+  }
+};
 </script>
 
 <style scoped>
+/* Estilos de la Alerta de Cancelación */
+.toast-notification {
+  position: fixed;
+  top: 25px;
+  right: 25px;
+  background-color: #EF4444;
+  color: white;
+  padding: 14px 24px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.toast-enter-active, .toast-leave-active {
+  transition: all 0.4s ease;
+}
+.toast-enter-from {
+  transform: translateY(-20px) scale(0.9);
+  opacity: 0;
+}
+.toast-leave-to {
+  transform: translateX(50px);
+  opacity: 0;
+}
+
+/* Diseño Original */
 .reservations-container { padding: 40px; max-width: 1000px; margin: 0 auto; font-family: 'Poppins', sans-serif; }
 .page-header { margin-bottom: 30px; }
 .page-title { font-size: 24px; font-weight: 700; color: #1F2937; margin: 0 0 5px; }
@@ -150,8 +255,13 @@ const joinMeeting = (expertName) => {
 .card-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; min-width: 120px; }
 .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 .status-pill.confirmada { background: #D1FAE5; color: #059669; text-transform: capitalize; }
+.status-pill.cancelada { background: #FEE2E2; color: #DC2626; text-transform: capitalize; }
+
 .btn-join { background: #0097B2; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; width: 100%; }
 .btn-join:hover { background: #007A8F; }
+
+.btn-cancel { background: transparent; color: #EF4444; border: 1px solid #FCA5A5; padding: 6px 15px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; transition: 0.2s; width: 100%; }
+.btn-cancel:hover { background: #FEE2E2; }
 
 .empty-state { text-align: center; padding: 80px 20px; background: white; border-radius: 16px; border: 1px dashed #D1D5DB; }
 .empty-state h3 { color: #4B5563; margin-bottom: 15px; }

@@ -42,11 +42,6 @@ const routes = [
                 component: () => import('@/reservations/pages/reservations-list.component.vue')
             },
             {
-                path: 'mensajes',
-                name: 'mensajes',
-                component: () => import('@/messages/pages/messages-view.vue')
-            },
-            {
                 path: 'perfil',
                 name: 'perfil',
                 component: () => import('@/profile/pages/profile-view.component.vue')
